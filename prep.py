@@ -4,17 +4,23 @@ Preparing data for later experiments.
 """
 
 # STD
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 import json
 import gzip
 import os
+import pickle
 
 # EXT
 import numpy as np
 
+# PROJECT
+from macos import MacOSFile
+
 # CONST
 DATA_SET_TYPES = ("test", "train", "valid")
 DATA_SET_PATH = os.path.dirname(__file__) + "/data/vqa_{}_{}.gzip"
+QAVectors = namedtuple("QAVector", ["question_vec", "answer_vec", "image_id"])
+globals()[QAVectors.__name__] = QAVectors  # Hack to make this namedtuple pickle-able
 
 
 class Question:
@@ -85,11 +91,44 @@ class HotLookup:
         return np.array([1 if entry in key else 0 for entry in self.vocabulary])
 
 
+class HotVectorCollection:
+    """
+    Class to store pairs of one-hot question and answer vectors as well as easily saving and loading them.
+    """
+    def __init__(self, load_path=None, set_name=None, unique_answers=False, args_question_voc=None,
+                 args_answer_voc=None):
+        # Create vectors from scratch
+        if set_name is not None:
+            self.vec_pairs = get_data_hot_vectors(set_name, unique_answers, args_question_voc, args_answer_voc)
+
+        # Load vectors from pickle file
+        elif load_path is not None:
+            self.vec_pairs = self.load(load_path)
+
+    def save(self, path):
+        with open(path, "wb") as file:
+            pickle.dump(self.vec_pairs, MacOSFile(file))
+        #data = np.array([
+        #    np.array([vec_pair.question_vec, vec_pair.answer_vec, vec_pair.image_id]) for vec_pair in self.vec_pairs
+        #])
+        #np.save(path, data, allow_pickle=False)
+
+    @staticmethod
+    def load(path):
+        with open(path, "rb") as file:
+            return pickle.load(MacOSFile(file))
+
+    def __iter__(self):
+        for vec_pair in self.vec_pairs:
+            yield vec_pair
+
+
 def get_data_set(set_name, unique_answers=False):
     """
     Retrieve all the question and their respective answers from a data set (possible options are
     "test", "valid", and "train").
 
+    :param set_name: Name of data set.
     :param unique_answers: Flag to indicate whether duplicate answers to a question should be kept.
     :type unique_answers: bool
     """
@@ -134,14 +173,6 @@ def get_data_set(set_name, unique_answers=False):
     return questions, answers
 
 
-def read_data_file(path):
-    """
-    Read a json data set from a gzipped file.
-    """
-    with gzip.open(path, "rb") as file:
-        return json.loads(file.read())
-
-
 def get_vocabulary(source, entry_getter, threshold=0, index_vocab=True, add_unk=True):
     """
     Generate vocabulary from a collection.
@@ -180,29 +211,61 @@ def get_vocabulary(source, entry_getter, threshold=0, index_vocab=True, add_unk=
     return vocabulary, entry2index, index2entry
 
 
-if __name__ == "__main__":
-    questions, answers = get_data_set("train", unique_answers=False)
+def read_data_file(path):
+    """
+    Read a json data set from a gzipped file.
+    """
+    with gzip.open(path, "rb") as file:
+        return json.loads(file.read())
 
-    #for _, question in questions.items():
-    #    print(question)
-    #    for answer in question:
-    #        print(answer)
 
+def get_data_hot_vectors(set_name, unique_answers=False, args_question_voc=None, args_answer_voc=None):
+    """
+    Read in a data set (possible options are "test", "valid", and "train") and return the questions and answers
+    as pairs of one-hot (or "multiple-hot") vectors.
+
+    :param set_name: Name of data set.
+    :param unique_answers: Flag to indicate whether redundant answers should be discarded.
+    :param args_question_voc: Additional arguments for creating the question vocabulary.
+    :param args_answer_voc: Additional arguments for creating the answer vocabulary.
+    :return List of namedtuples
+    """
+    # Initialize default arguments to create the vocabulary
+    args_question_voc = args_question_voc if args_question_voc is not None else {"index_vocab": True}
+    args_answer_voc = args_answer_voc if args_answer_voc is not None else {"add_unk": False, "index_vocab": True}
+
+    # Read data set, get vocabulary
+    questions, answers = get_data_set(set_name, unique_answers)
     question_vocabulary, qe2i, qi2e = get_vocabulary(
         questions.values(), entry_getter=lambda question: question.question.replace("?", "").split(" "),
-        index_vocab=True, threshold=1000
+        **args_question_voc
     )
     answer_vocabulary, ae2i, ai2e = get_vocabulary(
-        list(answers.values()), entry_getter=lambda answer: answer.answer, index_vocab=False, add_unk=False,
-        threshold=1000
+        list(answers.values()), entry_getter=lambda answer: answer.answer, **args_answer_voc
     )
 
-    # print(answer_vocabulary)
-    # hots_answers = HotLookup(answer_vocabulary)
-    # print(hots_answers["red"])
-
-    print(question_vocabulary)
+    # Initialise one hot vectors
     hots_questions = HotLookup(
         question_vocabulary, key_func=lambda key: key.replace("?", "").split(" "), entry2index=qe2i
     )
-    print(hots_questions["How many are you?"])
+    hots_answers = HotLookup(answer_vocabulary, entry2index=ae2i)
+
+    # Retrieve question / answer vector pairs
+    vec_pairs = []
+    for _, question in questions.items():
+        question_vec = hots_questions[question.question]
+
+        for answer in question:
+            answer_vec = hots_answers[answer.answer]
+            qa_vec_pair = QAVectors(question_vec=question_vec, answer_vec=answer_vec, image_id=question.image_id)
+            vec_pairs.append(qa_vec_pair)
+
+    return vec_pairs
+
+if __name__ == "__main__":
+    vec_collection = HotVectorCollection(set_name="valid")
+    vec_collection.save("./data/valid_vecs.pickle")
+
+    #vec_collection = HotVectorCollection(load_path="./data/valid_vecs.pickle")
+    #for pair in vec_collection:
+    #    print(pair)
