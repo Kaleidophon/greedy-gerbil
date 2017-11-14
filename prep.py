@@ -107,16 +107,47 @@ class HotVectorCollection:
 
     def save(self, path):
         with open(path, "wb") as file:
-            pickle.dump(self.vec_pairs, MacOSFile(file))
-        #data = np.array([
-        #    np.array([vec_pair.question_vec, vec_pair.answer_vec, vec_pair.image_id]) for vec_pair in self.vec_pairs
-        #])
-        #np.save(path, data, allow_pickle=False)
+            converted_qavectors = [self._convert_qavectors_to_indices(vec_pair) for vec_pair in self.vec_pairs]
+            pickle.dump(converted_qavectors, MacOSFile(file))
+
+    def load(self, path):
+        with open(path, "rb") as file:
+            raw_qavectors = pickle.load(MacOSFile(file))
+            return [self._convert_qavectors_to_vec(vec_pair) for vec_pair in raw_qavectors]
+
+    def _convert_qavectors_to_indices(self, vec_pair):
+        return (
+            self._convert_vec_to_indices(vec_pair.question_vec),
+            self._convert_vec_to_indices(vec_pair.answer_vec),
+            vec_pair.image_id
+        )
+
+    def _convert_qavectors_to_vec(self, vec_pair):
+        return QAVectors(
+            question_vec=self._convert_indices_to_vec(vec_pair[0]),
+            answer_vec=self._convert_indices_to_vec(vec_pair[1]),
+            image_id=vec_pair[2]
+        )
 
     @staticmethod
-    def load(path):
-        with open(path, "rb") as file:
-            return pickle.load(MacOSFile(file))
+    def _convert_vec_to_indices(vec):
+        hot_indices = [len(vec)]
+
+        for i in range(vec.shape[0]):
+            if vec[i] == 1:
+                hot_indices.append(i)
+
+        return hot_indices
+
+    @staticmethod
+    def _convert_indices_to_vec(indices):
+        length = indices.pop(0)  # Length of vector is first entry
+        vec = np.zeros(length)
+
+        for hot_index in indices:
+            vec[hot_index] = 1
+
+        return vec
 
     def __iter__(self):
         for vec_pair in self.vec_pairs:
@@ -266,6 +297,6 @@ if __name__ == "__main__":
     vec_collection = HotVectorCollection(set_name="valid")
     vec_collection.save("./data/valid_vecs.pickle")
 
-    #vec_collection = HotVectorCollection(load_path="./data/valid_vecs.pickle")
-    #for pair in vec_collection:
-    #    print(pair)
+    vec_collection2 = HotVectorCollection(load_path="./data/valid_vecs.pickle")
+    for pair in vec_collection2:
+        print(pair)
