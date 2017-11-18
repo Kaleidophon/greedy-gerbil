@@ -28,11 +28,11 @@ class MacOSFile:
 
     def write(self, buffer):
         n = len(buffer)
-        print("writing total_bytes=%s..." % n, flush=True)
+        #print("writing total_bytes=%s..." % n, flush=True)
         idx = 0
         while idx < n:
             batch_size = min(n - idx, 1 << 31 - 1)
-            print("writing bytes [%s, %s)... " % (idx, idx + batch_size), end="", flush=True)
+            #print("writing bytes [%s, %s)... " % (idx, idx + batch_size), end="", flush=True)
             self.f.write(buffer[idx:idx + batch_size])
-            print("done.", flush=True)
+            #print("done.", flush=True)
             idx += batch_size

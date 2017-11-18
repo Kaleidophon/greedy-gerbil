@@ -11,7 +11,9 @@ import os
 import pickle
 
 # EXT
+import h5py
 import numpy as np
+from torch.utils.data import Dataset, DataLoader
 
 # PROJECT
 from macos import MacOSFile
@@ -19,8 +21,10 @@ from macos import MacOSFile
 # CONST
 DATA_SET_TYPES = ("test", "train", "valid")
 DATA_SET_PATH = os.path.dirname(__file__) + "/data/vqa_{}_{}.gzip"
-QAVectors = namedtuple("QAVector", ["question_vec", "answer_vec", "image_id"])
+QAVectors = namedtuple("QAVector", ["question_vec", "answer_vec", "image_vec", "image_id"])
 globals()[QAVectors.__name__] = QAVectors  # Hack to make this namedtuple pickle-able
+
+# TODO (Bug): Create joint vocabulary for all sets! [DU 18.11.17]
 
 
 class Question:
@@ -91,24 +95,44 @@ class HotLookup:
         return np.array([1 if entry in key else 0 for entry in self.vocabulary])
 
 
-class HotVectorCollection:
+class VQADataset(Dataset):
     """
-    Class to store pairs of one-hot question and answer vectors as well as easily saving and loading them.
+    Class to store pairs of one-hot question and answer vectors and their corresponding image features as well as easily
+     saving and loading them.
     """
-    def __init__(self, load_path=None, set_name=None, unique_answers=False, args_question_voc=None,
-                 args_answer_voc=None):
+    def __init__(self, load_path=None, set_name=None, unique_answers=False, args_question_voc=dict(),
+                 args_answer_voc=dict(), image_features_path=None, image_features2id_path=None, verbosity=1):
+        self.verbosity = verbosity
+
+        # Load image features if necessary paths are given
+        self.image_features = None
+        if None not in (image_features_path, image_features2id_path):
+            if verbosity > 0: print("Paths to image features are given, loading...", end="", flush=True)
+            self.image_features = read_image_features_file(image_features_path, image_features2id_path)
+            if verbosity > 0: print("\rLoading of image features complete!")
+        else:
+            print("WARNING! Paths to image features are not given. They will not be added to the data set.")
+
         # Create vectors from scratch
         if set_name is not None:
-            self.vec_pairs = get_data_hot_vectors(set_name, unique_answers, args_question_voc, args_answer_voc)
+            if verbosity > 0: print("Data set name is given, creating one hot vectors...", end="", flush=True)
+            self.vec_pairs = get_data_hot_vectors(
+                set_name, unique_answers, image_features=self.image_features, **args_question_voc, **args_answer_voc,
+            )
+            if verbosity > 0: print("\rCreating one hot vectors complete!")
 
-        # Load vectors from pickle file
+        # Load data from pickle file
         elif load_path is not None:
+            if verbosity > 0: print("Loading one hot vectors from pickle file...", end="", flush=True)
             self.vec_pairs = self.load(load_path)
+            if verbosity > 0: print("\rLoading one hot vectors from pickle file complete!")
 
     def save(self, path):
+        if self.verbosity > 0: print("Saving one hot vectors to pickle file...", end="", flush=True)
         with open(path, "wb") as file:
             converted_qavectors = [self._convert_qavectors_to_indices(vec_pair) for vec_pair in self.vec_pairs]
             pickle.dump(converted_qavectors, MacOSFile(file))
+        if self.verbosity > 0: print("\rSaving one hot vectors to pickle file complete!")
 
     def load(self, path):
         with open(path, "rb") as file:
@@ -123,9 +147,13 @@ class HotVectorCollection:
         )
 
     def _convert_qavectors_to_vec(self, vec_pair):
+        # Add image features to tuple if available
+        image_feature_func = lambda image_id: [] if self.image_features is None else self.image_features[image_id]
+
         return QAVectors(
             question_vec=self._convert_indices_to_vec(vec_pair[0]),
             answer_vec=self._convert_indices_to_vec(vec_pair[1]),
+            image_vec=image_feature_func(vec_pair[2]),
             image_id=vec_pair[2]
         )
 
@@ -152,6 +180,12 @@ class HotVectorCollection:
     def __iter__(self):
         for vec_pair in self.vec_pairs:
             yield vec_pair
+
+    def __len__(self):
+        return len(self.vec_pairs)
+
+    def __getitem__(self, item):
+        return self.vec_pairs[item]
 
 
 def get_data_set(set_name, unique_answers=False):
@@ -250,13 +284,24 @@ def read_data_file(path):
         return json.loads(file.read())
 
 
-def get_data_hot_vectors(set_name, unique_answers=False, args_question_voc=None, args_answer_voc=None):
+def read_image_features_file(features_path, features2id_path):
+    img_features = np.asarray(h5py.File(features_path, 'r')['img_features'])
+
+    with open(features2id_path, 'r') as f:
+        visual_feat_mapping = json.load(f)['VQA_imgid2id']
+
+    return {int(image_id): img_features[image_index] for image_id, image_index in visual_feat_mapping.items()}
+
+
+def get_data_hot_vectors(set_name, unique_answers=False, image_features=None, args_question_voc=None,
+                         args_answer_voc=None):
     """
     Read in a data set (possible options are "test", "valid", and "train") and return the questions and answers
     as pairs of one-hot (or "multiple-hot") vectors.
 
     :param set_name: Name of data set.
     :param unique_answers: Flag to indicate whether redundant answers should be discarded.
+    :param image_features: Dictionary of image ids and their corresponding image features.
     :param args_question_voc: Additional arguments for creating the question vocabulary.
     :param args_answer_voc: Additional arguments for creating the answer vocabulary.
     :return List of namedtuples
@@ -288,15 +333,27 @@ def get_data_hot_vectors(set_name, unique_answers=False, args_question_voc=None,
 
         for answer in question:
             answer_vec = hots_answers[answer.answer]
-            qa_vec_pair = QAVectors(question_vec=question_vec, answer_vec=answer_vec, image_id=question.image_id)
+            qa_vec_pair = QAVectors(
+                question_vec=question_vec, answer_vec=answer_vec, image_id=question.image_id,
+                image_vec=[] if image_features is None else image_features[question.image_id]
+            )
             vec_pairs.append(qa_vec_pair)
 
     return vec_pairs
 
 if __name__ == "__main__":
-    vec_collection = HotVectorCollection(set_name="valid")
-    vec_collection.save("./data/valid_vecs.pickle")
+    #vec_collection = VQADataset(
+    #    set_name="valid", image_features_path="./data/VQA_image_features.h5",
+    #    image_features2id_path="./data/VQA_img_features2id.json"
+    #)
+    #vec_collection.save("./data/valid_vecs.pickle")
 
-    vec_collection2 = HotVectorCollection(load_path="./data/valid_vecs.pickle")
-    for pair in vec_collection2:
-        print(pair)
+    vec_collection = VQADataset(
+        load_path="./data/valid_vecs.pickle",
+        image_features_path="./data/VQA_image_features.h5",
+        image_features2id_path="./data/VQA_img_features2id.json"
+    )
+
+    dataset_loader = DataLoader(vec_collection, batch_size=4, shuffle=True, num_workers=4)
+    for i_batch, sample_batched in enumerate(dataset_loader):
+        print(i_batch, sample_batched)
