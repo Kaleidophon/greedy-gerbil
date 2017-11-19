@@ -12,15 +12,14 @@ from torch.utils.data import DataLoader
 
 # PROJECT
 from data_loading import (
-    combine_data_sets, QAVectors, save_qa_vocab, save_qa_vectors, convert_qavectors_to_indices,
-    VQADataset
+    combine_data_sets, QAVectors, save_qa_vocab, save_qa_vectors, convert_qavectors_to_indices, VQADataset
 )
 
 # CONST
 QAVocabulary = namedtuple(
     "QAVocabulary", [
-        "questions",  # Question vocabulary
-        "answers",    # Answer vocabulary
+        "questions",  # Question vocabulary (a word in the vocabulary is called an "entry")
+        "answers",    # Answer vocabulary (a word in the vocabulary is called an "entry")
         "qe2i",       # Dict from question vocabulary entry to its index in the one hot vector
         "qi2e",       # Reverse of qe2i
         "ae2i",       # Dict from answer vocabulary entry to its index in the one hot vector
@@ -98,15 +97,18 @@ def get_vocabulary(source, entry_getter, threshold=0, index_vocab=True, add_unk=
     return vocabulary, entry2index, index2entry
 
 
-def get_data_hot_vectors(questions, answers, image_features=None, args_question_voc=None,
-                         args_answer_voc=None, convert=False):
+def get_data_hot_vectors(questions, answers, image_features=None, args_question_voc=None, args_answer_voc=None,
+                         convert=False):
     """
-    Read in a data set (possible options are "test", "valid", and "train") and return the questions and answers
-    as pairs of one-hot (or "multiple-hot") vectors.
+    Take questions and answers of a data set and return the questions and answers
+    as pairs of one-hot (or "multiple-hot") vectors (and image features, if they have been loaded).
 
+    :param questions: List of Question objects for a data set.
+    :param answers: List Answer objects for a data set.
     :param image_features: Dictionary of image ids and their corresponding image features.
     :param args_question_voc: Additional arguments for creating the question vocabulary.
     :param args_answer_voc: Additional arguments for creating the answer vocabulary.
+    :param convert: Convert one-hot vectors into dense data format during creation.
     :return List of namedtuples
     """
     # Initialize default arguments to create the vocabulary
@@ -152,6 +154,15 @@ def get_data_hot_vectors(questions, answers, image_features=None, args_question_
 
 
 def save_vectors(data_vecs, target_dir, qid2set, convert=True):
+    """
+    Save a list of QAVectors namedtuples into pickle files.
+
+    :param data_vecs: List of QAVectors.
+    :param target_dir: Directory to save vectors in.
+    :param qid2set: Dictionary mapping from a question's id to the split (train, valid, test) it original belonged to.
+    :param convert: Convert one-hot vectors into dense data format during saving (not necessary if they have been
+    converted during creation).
+    """
     vector_sets = defaultdict(list)
 
     # Sort them back into their right sets
@@ -168,17 +179,23 @@ def save_vectors(data_vecs, target_dir, qid2set, convert=True):
         print("\rSaving data set {} complete!".format(set_name))
 
 if __name__ == "__main__":
-    #questions, answers, qid2set, aid2set = combine_data_sets("train", "valid", "test")
-    #data_vecs, qa_vocab = get_data_hot_vectors(questions, answers, convert=True)
-    #save_qa_vocab(qa_vocab, "./data/qa_vocab.pickle")
-    #save_vectors(data_vecs, "./data/", qid2set, convert=False)
+    # 1. Read in all the data sets to create a global question / answer vocabulary
+    questions, answers, qid2set, aid2set = combine_data_sets("train", "valid", "test")
 
-    vec_collection = VQADataset(
-        load_path="./data/vqa_vecs_train.pickle",
-        image_features_path="./data/VQA_image_features.h5",
-        image_features2id_path="./data/VQA_img_features2id.json"
-    )
+    # 2. Create one-hot vectors and the vocabulary
+    data_vecs, qa_vocab = get_data_hot_vectors(questions, answers, convert=True)
 
-    dataset_loader = DataLoader(vec_collection, batch_size=4, shuffle=True, num_workers=4)
-    for i_batch, sample_batched in enumerate(dataset_loader):
-        print(i_batch, sample_batched)
+    # 3. Save the vocabulary and the one-hot vectors using pickle
+    save_qa_vocab(qa_vocab, "./data/qa_vocab.pickle")
+    save_vectors(data_vecs, "./data/", qid2set, convert=False)
+
+    # Example on how to load the pickled data and use it with the torch DataLoader class
+    #vec_collection = VQADataset(
+    #    load_path="./data/vqa_vecs_train.pickle",
+    #    image_features_path="./data/VQA_image_features.h5",
+    #    image_features2id_path="./data/VQA_img_features2id.json"
+    #)
+
+    #dataset_loader = DataLoader(vec_collection, batch_size=4, shuffle=True, num_workers=4)
+    #for i_batch, sample_batched in enumerate(dataset_loader):
+    #    print(i_batch, sample_batched)
