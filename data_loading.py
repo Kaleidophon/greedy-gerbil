@@ -35,7 +35,8 @@ class VQADataset(Dataset):
     Class to store pairs of one-hot question and answer vectors and their corresponding image features as well as easily
      saving and loading them.
     """
-    def __init__(self, load_path=None, image_features_path=None, image_features2id_path=None, verbosity=1):
+    def __init__(self, load_path=None, image_features_path=None, image_features2id_path=None, inflate_vecs=True,
+                 verbosity=1):
         """
         Init data set class. Note: Supplying `load_path`, the path to the pickled one-hot vectors, is mandatory,
         supplying a path to the image features using `images_features_path` and `image_features2id_path` is optional.
@@ -44,9 +45,16 @@ class VQADataset(Dataset):
         :param load_path: Path to pickled one-hot vectors.
         :param image_features_path: Path to image features.
         :param image_features2id_path: Path to json file resolving the indices for image features.
+        :param inflate_vecs: Convert vectors from the dense format into the sparse format.
         :param verbosity: Verbosity. At 0, no output will be printed, 1 will print some progress messages.
         """
+        self.inflate_vecs = inflate_vecs
         self.verbosity = verbosity
+
+        if not inflate_vecs and verbosity > 0:
+            print("Question and answer vectors will remain in dense format.")
+        elif verbosity > 0:
+            print("Question and answer vectors will be converted into sparse format.")
 
         # Load image features if necessary paths are given
         self.image_features = None
@@ -59,9 +67,13 @@ class VQADataset(Dataset):
 
         # Load data from pickle file
         if load_path is not None:
-            if verbosity > 0: print("Loading one hot vectors from pickle file...", end="", flush=True)
+            if verbosity > 0:
+                print("Loading one hot vectors from pickle file...", end="", flush=True)
+
             self.data_vecs = self.load(load_path)
-            if verbosity > 0: print("\rLoading one hot vectors from pickle file complete!")
+
+            if verbosity > 0:
+                print("\rLoading one hot vectors from pickle file complete!")
         else:
             raise AttributeError("No path to pickled data has been given!")
 
@@ -69,7 +81,7 @@ class VQADataset(Dataset):
         save_qa_vectors(self.data_vecs, path, verbosity=self.verbosity)
 
     def load(self, path):
-        return load_qa_vectors(path, image_features=self.image_features)
+        return load_qa_vectors(path, image_features=self.image_features, convert=self.inflate_vecs)
 
     def __iter__(self):
         for vec_pair in self.data_vecs:
@@ -262,16 +274,17 @@ def save_qa_vectors(data_vecs, path, verbosity=0, convert=True):
     if verbosity > 0: print("\rSaving one hot vectors to pickle file complete!")
 
 
-def load_qa_vectors(path, image_features=None):
+def load_qa_vectors(path, image_features=None, convert=True):
     """
     Load list of QAVectors from pickle file.
 
     :param path: Path to pickle file.
     :param image_features: Dictionary of image features. Add them to the namedtuples if not None.
+    :param convert: Convert vectors from dense into sparse format.
     """
     with open(path, "rb") as file:
         raw_qavectors = pickle.load(file)
-        return [convert_qavectors_to_vec(vec_pair, image_features) for vec_pair in raw_qavectors]
+        return [convert_qavectors_to_vec(vec_pair, image_features, convert) for vec_pair in raw_qavectors]
 
 
 def convert_qavectors_to_indices(vec_pair):
@@ -285,7 +298,7 @@ def convert_qavectors_to_indices(vec_pair):
     )
 
 
-def convert_qavectors_to_vec(vec_pair, image_features=None):
+def convert_qavectors_to_vec(vec_pair, image_features=None, convert=True):
     """
     Convert dense vector in QAVectors into sparse format.
     """
@@ -293,8 +306,8 @@ def convert_qavectors_to_vec(vec_pair, image_features=None):
     image_feature_func = lambda image_id: [] if image_features is None else image_features[image_id]
 
     return QAVectors(
-        question_vec=convert_indices_to_vec(vec_pair[0]),
-        answer_vec=convert_indices_to_vec(vec_pair[1]),
+        question_vec=convert_indices_to_vec(vec_pair[0]) if convert else vec_pair[0],
+        answer_vec=convert_indices_to_vec(vec_pair[1]) if convert else vec_pair[1],
         image_vec=image_feature_func(vec_pair[2]),
         image_id=vec_pair[2], question_id=vec_pair[3], answer_id=vec_pair[4]
     )
