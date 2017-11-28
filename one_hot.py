@@ -192,6 +192,7 @@ if __name__ == "__main__":
     # Example on how to load the pickled data and use it with the torch DataLoader class
     #vec_collection = VQADataset(
     #    load_path="./data/vqa_vecs_train.pickle",
+    #    inflate_vecs=False
     #    image_features_path="./data/VQA_image_features.h5",
     #    image_features2id_path="./data/VQA_img_features2id.json"
     #)
