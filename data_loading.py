@@ -318,7 +318,7 @@ def convert_vec_to_indices(vec):
     Convert one one-hot vector into dense format.
     """
     hot_indices = [len(vec)]
-    hot_indices.extend(list(np.where(vec == 1)))  # Save "hot" indices, np.where is much fast than vanilla python loop
+    hot_indices.extend(list(np.where(vec == 1))[0])  # Save "hot" indices, np.where is much faster than vanilla loop
 
     return hot_indices
 

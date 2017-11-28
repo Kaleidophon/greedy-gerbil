@@ -180,24 +180,23 @@ def save_vectors(data_vecs, target_dir, qid2set, convert=True):
 
 if __name__ == "__main__":
     # 1. Read in all the data sets to create a global question / answer vocabulary
-    #questions, answers, qid2set, aid2set = combine_data_sets("train", "valid", "test")
+    questions, answers, qid2set, aid2set = combine_data_sets("train", "valid", "test")
 
     # 2. Create one-hot vectors and the vocabulary
-    #data_vecs, qa_vocab = get_data_hot_vectors(questions, answers, convert=True)
+    data_vecs, qa_vocab = get_data_hot_vectors(questions, answers, convert=True)
 
     # 3. Save the vocabulary and the one-hot vectors using pickle
-    #save_qa_vocab(qa_vocab, "./data/qa_vocab.pickle")
-    #save_vectors(data_vecs, "./data/", qid2set, convert=False)
+    save_qa_vocab(qa_vocab, "./data/qa_vocab.pickle")
+    save_vectors(data_vecs, "./data/", qid2set, convert=False)
 
     # Example on how to load the pickled data and use it with the torch DataLoader class
-    vec_collection = VQADataset(
-        load_path="./data/vqa_vecs_train.pickle",
-        inflate_vecs=False
+    #vec_collection = VQADataset(
+    #    load_path="./data/vqa_vecs_train.pickle",
+    #    inflate_vecs=False
     #    image_features_path="./data/VQA_image_features.h5",
     #    image_features2id_path="./data/VQA_img_features2id.json"
-    )
+    #)
 
-    pass
     #dataset_loader = DataLoader(vec_collection, batch_size=4, shuffle=True, num_workers=4)
     #for i_batch, sample_batched in enumerate(dataset_loader):
     #    print(i_batch, sample_batched)

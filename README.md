@@ -59,6 +59,10 @@ Using the arguments `image_features_path` and `image_features2id_path` for
 `VQADataset` is optional, but omitting these will **not** load the image features
 to the data set.
 
+Also, `inflate_vectors` can be set `False` to load vectors in their dense
+format and save memory. In this case, the first number in the vector determines its
+lengths, the remaining numbers determine the indices which are one.
+
 
 ### TODO
 See [this GitHUb issue](https://github.com/Kaleidophon/greedy-gerbil/issues/4)
