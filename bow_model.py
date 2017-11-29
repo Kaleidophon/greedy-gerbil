@@ -1,34 +1,23 @@
 import torch.nn as nn
 import torch
-import torch.optim as optim
-
+import torch.nn.functional as F
 
 class BoWModel(nn.Module):
-    def __init__(self, vocabSize, wordFeaturesDim, imageFeaturesDim, outputDim):
-        super(BoWModel,self).__init__()
-        self.wordFeaturesLayer = nn.Embedding(vocabSize, wordFeaturesDim)
-        self.bias = nn.Parameter(torch.zeros(wordFeaturesDim))
+    def __init__(self, vocab_features_dim, embedding_dim,  image_features_dim, output_dim):
+        super().__init__()
+        self.embedding_bag = nn.EmbeddingBag(vocab_features_dim, embedding_dim, mode='mean')
+        self.linearLayer = nn.Linear(image_features_dim + embedding_dim, output_dim)
+        self.softmax = nn.Softmax(dim=1)
 
-        self.linearLayer = nn.Linear(imageFeaturesDim + wordFeaturesDim,outputDim)
-        self.softMax = nn.Softmax(outputDim)
-
-
-    def forward(self, wordInputs, imageFeatures):
-        wordFeatures = self.wordFeaturesLayer(wordInputs) + self.bias
-        features = torch.cat((wordFeatures,imageFeatures),1)
-
-        linearOut = self.linearLayer(features)
-        softMaxOut = self.softMax(linearOut)
-
-        return softMaxOut
+    def forward(self, word_features, image_features):
+        embeddings = self.embedding_bag(word_features)
+        features = torch.cat((embeddings, image_features), 1)
+        linear_out = self.linearLayer(features)
+        out = self.softmax(linear_out)
+        return out
 
 
 
-def train(model: BoWModel, iterations, learningRate = 0.01, cuda = False):
-    if cuda:
-        trainingModel = model.cuda()
-    else:
-        trainingModel = model
 
 
-    optimizer = optim.SGD(trainingModel.parameters(),lr = learningRate)
+

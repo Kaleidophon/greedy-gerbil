@@ -85,13 +85,31 @@ class VQADataset(Dataset):
 
     def __iter__(self):
         for vec_pair in self.data_vecs:
-            yield vec_pair
+            if self.inflate_vecs:
+                yield vec_pair
+            else:
+                yield QAVectors(
+                    question_vec=convert_indices_to_vec(vec_pair.question_vec),
+                    answer_vec=vec_pair.answer_vec,
+                    image_vec=vec_pair.image_vec,
+                    image_id=vec_pair.image_id, question_id=vec_pair.question_id, answer_id=vec_pair.answer_id
+                )
 
     def __len__(self):
         return len(self.data_vecs)
 
     def __getitem__(self, item):
-        return self.data_vecs[item]
+        if self.inflate_vecs:
+            return self.data_vecs[item]
+        else:
+            vec_pair = self.data_vecs[item]
+            return QAVectors(
+                question_vec=convert_indices_to_vec(vec_pair.question_vec),
+                answer_vec=vec_pair.answer_vec,
+                image_vec=vec_pair.image_vec,
+                image_id=vec_pair.image_id, question_id=vec_pair.question_id, answer_id=vec_pair.answer_id
+            )
+
 
 
 class Question:
