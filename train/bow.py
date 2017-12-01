@@ -1,3 +1,6 @@
+import sys, os, argparse
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+
 from models.bow import BoWModel
 from torch.utils.data.dataloader import DataLoader
 from data_loading import VQADataset
