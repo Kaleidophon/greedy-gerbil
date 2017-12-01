@@ -106,8 +106,8 @@ class VQADataset(Dataset):
                 yield vec_pair
             else:
                 yield QAVectors(
-                    question_vec=convert_indices_to_vec(vec_pair.question_vec),
-                    answer_vec=vec_pair.answer_vec,
+                    question_vec=vec_pair.question_vec[1:],
+                    answer_vec=vec_pair.answer_vec[1:],
                     image_vec=vec_pair.image_vec,
                     image_id=vec_pair.image_id, question_id=vec_pair.question_id, answer_id=vec_pair.answer_id
                 )
@@ -121,8 +121,8 @@ class VQADataset(Dataset):
         else:
             vec_pair = self.data_vecs[item]
             return QAVectors(
-                question_vec=convert_indices_to_vec(vec_pair.question_vec),
-                answer_vec=vec_pair.answer_vec,
+                question_vec=vec_pair.question_vec[1:],
+                answer_vec=vec_pair.answer_vec[1:],
                 image_vec=vec_pair.image_vec,
                 image_id=vec_pair.image_id, question_id=vec_pair.question_id, answer_id=vec_pair.answer_id
             )
