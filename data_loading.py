@@ -82,6 +82,22 @@ class VQADataset(Dataset):
 
         self.question_dim, self.answer_dim = self._get_vector_dims()
 
+        for i, vec_pair in enumerate(self.data_vecs):
+            if self.inflate_vecs:
+                self.data_vecs[i] = QAVectors(
+                    question_vec=convert_indices_to_vec(vec_pair.question_vec),
+                    answer_vec=vec_pair.answer_vec,
+                    image_vec=vec_pair.image_vec,
+                    image_id=vec_pair.image_id, question_id=vec_pair.question_id, answer_id=vec_pair.answer_id
+                )
+            else:
+                self.data_vecs[i] = QAVectors(
+                    question_vec=vec_pair.question_vec[1:],
+                    answer_vec=vec_pair.answer_vec[1:],
+                    image_vec=vec_pair.image_vec,
+                    image_id=vec_pair.image_id, question_id=vec_pair.question_id, answer_id=vec_pair.answer_id
+                )
+
     def save(self, path):
         save_qa_vectors(self.data_vecs, path, verbosity=self.verbosity)
 
@@ -106,8 +122,8 @@ class VQADataset(Dataset):
                 yield vec_pair
             else:
                 yield QAVectors(
-                    question_vec=vec_pair.question_vec[1:],
-                    answer_vec=vec_pair.answer_vec[1:],
+                    question_vec=convert_indices_to_vec(vec_pair.question_vec),
+                    answer_vec=vec_pair.answer_vec,
                     image_vec=vec_pair.image_vec,
                     image_id=vec_pair.image_id, question_id=vec_pair.question_id, answer_id=vec_pair.answer_id
                 )
@@ -121,8 +137,8 @@ class VQADataset(Dataset):
         else:
             vec_pair = self.data_vecs[item]
             return QAVectors(
-                question_vec=vec_pair.question_vec[1:],
-                answer_vec=vec_pair.answer_vec[1:],
+                question_vec=convert_indices_to_vec(vec_pair.question_vec),
+                answer_vec=vec_pair.answer_vec,
                 image_vec=vec_pair.image_vec,
                 image_id=vec_pair.image_id, question_id=vec_pair.question_id, answer_id=vec_pair.answer_id
             )
