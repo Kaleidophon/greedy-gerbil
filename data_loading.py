@@ -82,6 +82,8 @@ class VQADataset(Dataset):
 
         self.question_dim, self.answer_dim = self._get_vector_dims()
 
+        # Convert vectors if necessary and determine maximum question size
+        self.max_question_length = 0
         for i, vec_pair in enumerate(self.data_vecs):
             if self.inflate_vecs:
                 self.data_vecs[i] = QAVectors(
@@ -97,6 +99,9 @@ class VQADataset(Dataset):
                     image_vec=vec_pair.image_vec,
                     image_id=vec_pair.image_id, question_id=vec_pair.question_id, answer_id=vec_pair.answer_id
                 )
+
+            if len(self.data_vecs[i].question_vec) > self.max_question_length:
+                self.max_question_length = len(self.data_vecs[i].question_vec)
 
     def save(self, path):
         save_qa_vectors(self.data_vecs, path, verbosity=self.verbosity)
@@ -121,8 +126,11 @@ class VQADataset(Dataset):
             if self.inflate_vecs:
                 yield vec_pair
             else:
+                question_length = len(vec_pair.question_vec)
                 yield QAVectors(
-                    question_vec=convert_indices_to_vec(vec_pair.question_vec),
+                    question_vec=np.lib.pad(
+                        vec_pair.question_vec, (0, self.max_question_length-question_length), mode="constant"
+                    ),
                     answer_vec=vec_pair.answer_vec,
                     image_vec=vec_pair.image_vec,
                     image_id=vec_pair.image_id, question_id=vec_pair.question_id, answer_id=vec_pair.answer_id
@@ -136,8 +144,11 @@ class VQADataset(Dataset):
             return self.data_vecs[item]
         else:
             vec_pair = self.data_vecs[item]
+            question_length = len(vec_pair.question_vec)
             return QAVectors(
-                question_vec=convert_indices_to_vec(vec_pair.question_vec),
+                question_vec=np.lib.pad(
+                    vec_pair.question_vec, (0, self.max_question_length - question_length), mode="constant"
+                ),
                 answer_vec=vec_pair.answer_vec,
                 image_vec=vec_pair.image_vec,
                 image_id=vec_pair.image_id, question_id=vec_pair.question_id, answer_id=vec_pair.answer_id
