@@ -1,4 +1,4 @@
-from bow_model import BoWModel
+from models.bow import BoWModel
 from torch.utils.data.dataloader import DataLoader
 from data_loading import VQADataset
 import torch.optim as optim
