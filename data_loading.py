@@ -28,6 +28,9 @@ QAVectors = namedtuple(
         "answer_id"      # ...
     ]
 )
+QUESTION_VOCAB_SIZE = 7924
+ANSWER_VOCAB_SIZE = 2048
+IMAGE_FEATURE_SIZE = 30806
 
 
 class VQADataset(Dataset):
@@ -205,7 +208,7 @@ def read_data_file(path):
     Read a json data set from a gzipped file.
     """
     with gzip.open(path, "rb") as file:
-        return json.loads(file.read())
+        return json.loads(file.read().decode('utf-8'))
 
 
 def get_data_set(set_name, unique_answers=False):
