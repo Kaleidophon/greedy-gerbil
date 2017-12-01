@@ -22,13 +22,10 @@ class RNNModel(nn.Module):
         # encode input questions
         gru_state = gru_state if gru_state else self._initialize_gru_state()
         embeddings = self.embedding(question).view(len(question), 1, self.hidden_size)
-        print("embeddings:", embeddings)
         encodings, gru_state = self.gru(embeddings, gru_state)
-        print("encodings:", encodings)
         last_state = encodings[-1][0]
         # predict answers
-        # question_vector = torch.cat((last_state, image))
-        question_vector = torch.cat((last_state, image)).view(1, 1, len(image) + self.hidden_size)
-        print("question vector:", question_vector)
-        answers = self.softmax(self.layer_transform(question_vector))
+        question_vector = torch.cat((last_state, image))
+        # question_vector = torch.cat((last_state, image)).view(1, 1, len(image) + self.hidden_size)
+        answers = self.softmax(self.layer_transform(question_vector).view(1, -1)) # softmax want some batches
         return answers

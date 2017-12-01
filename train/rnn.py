@@ -19,9 +19,10 @@ def train(model, dataset, iterations, learning_rate=.01, batch_size=100):
     optimizer = optim.Adagrad(model.parameters(), learning_rate)
     # start training
     for epoch in range(iterations):
-        running_loss = 0
         # iterate over batches
         for i_batch, batch in enumerate(dataset_loader):
+            print("training in epoch", epoch+1, "on batch", i_batch+1)
+            loss = 0.
             # separate batch into relevant parts
             questions, answers, images, _, _, _ = batch
             # choose top answer
@@ -37,9 +38,10 @@ def train(model, dataset, iterations, learning_rate=.01, batch_size=100):
                 # perform forward pass
                 model_answer = model(question, image)
                 # calculate and backpropagate loss
-                loss = criterion(model_answer, answer)
-                loss.backward()
-                optimizer.step()
+                loss += criterion(model_answer, answer)
+            print("loss on this batch:", loss.data[0]/batch_size)
+            loss.backward()
+            optimizer.step()
     print('Training complete.')
 
 if __name__ == "__main__":
