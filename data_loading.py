@@ -80,11 +80,25 @@ class VQADataset(Dataset):
         else:
             raise AttributeError("No path to pickled data has been given!")
 
+        self.question_dim, self.answer_dim = self._get_vector_dims()
+
     def save(self, path):
         save_qa_vectors(self.data_vecs, path, verbosity=self.verbosity)
 
     def load(self, path):
         return load_qa_vectors(path, image_features=self.image_features, convert=self.inflate_vecs)
+
+    def _get_vector_dims(self):
+        sample_vec = self.data_vecs[0]
+
+        # Dense vector
+        if self.inflate_vecs:
+            question_dim, answer_dim = len(sample_vec.question_vec), len(sample_vec.answer_vec)
+        # Sparse vector
+        else:
+            question_dim, answer_dim = sample_vec.question_vec[0], sample_vec.answer_vec[0]
+
+        return question_dim, answer_dim
 
     def __iter__(self):
         for vec_pair in self.data_vecs:
@@ -112,7 +126,6 @@ class VQADataset(Dataset):
                 image_vec=vec_pair.image_vec,
                 image_id=vec_pair.image_id, question_id=vec_pair.question_id, answer_id=vec_pair.answer_id
             )
-
 
 
 class Question:
@@ -253,10 +266,11 @@ def get_data_set(set_name, unique_answers=False):
                 uid=answer_id, image_id=question.image_id, answer=answer,
                 confidence=raw_answer["answer_confidence"], atype=answer_type
             )
-            if answer not in question or not unique_answers:
-                question.answers[choice_number] = answer_obj
+            if answer_obj.answer == question.choices:
+                if answer not in question or not unique_answers:
+                    question.answers[choice_number] = answer_obj
 
-            answers[answer_id] = answer_obj
+                answers[answer_id] = answer_obj
 
     return questions, answers
 
