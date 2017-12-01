@@ -28,10 +28,11 @@ def train(model: nn.Module, dataset: VQADataset, iterations, learn_rate=0.01, cu
 
 
 
-            answer = answer[1].view(batch_size)
             # wrap them in Variable
-            question, answer, image = Variable(question.long().cuda()), Variable(answer.cuda()), \
-                                      Variable(image.cuda())
+            question = Variable(question.long().cuda())
+            print(answer)
+            answer = Variable(answer)
+            image = Variable(image.cuda())
 
             # zero the parameter gradients
             optimizer.zero_grad()
@@ -55,13 +56,21 @@ def train(model: nn.Module, dataset: VQADataset, iterations, learn_rate=0.01, cu
 
 
 if __name__ == "__main__":
-    vec_collection = VQADataset(
-        load_path="./data/vqa_vecs_train.pickle",
-        image_features_path="./data/VQA_image_features.h5",
-        image_features2id_path="./data/VQA_img_features2id.json",
+    vec_train = VQADataset(
+        load_path="../data/vqa_vecs_train.pickle",
+        image_features_path="../data/VQA_image_features.h5",
+        image_features2id_path="../data/VQA_img_features2id.json",
         inflate_vecs=False
     )
+    vec_valid = VQADataset(
+        load_path="../data/vqa_vecs_valid.pickle",
+        image_features_path="../data/VQA_image_features.h5",
+        image_features2id_path="../data/VQA_img_features2id.json",
+        inflate_vecs=False
+    )
+
+
     #model = torch.load("models/debug1")
     model = BoWModel(7924, 256, 2048, 30806)
-    train(model, vec_collection, 1, cuda=True)
+    train(model, vec_train, 1, cuda=True)
     torch.save(model, "models/debug")

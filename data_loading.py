@@ -130,7 +130,7 @@ class VQADataset(Dataset):
                 yield QAVectors(
                     question_vec=np.lib.pad(
                         vec_pair.question_vec, (0, self.max_question_length-question_length), mode="constant",
-                        constant_values=(-1,)
+                        constant_values=(self.question_dim,)
                     ),
                     answer_vec=vec_pair.answer_vec,
                     image_vec=vec_pair.image_vec,
@@ -149,7 +149,7 @@ class VQADataset(Dataset):
             return QAVectors(
                 question_vec=np.lib.pad(
                     vec_pair.question_vec, (0, self.max_question_length - question_length), mode="constant",
-                    constant_values=(-1, )
+                    constant_values=(self.question_dim, )
                 ),
                 answer_vec=vec_pair.answer_vec,
                 image_vec=vec_pair.image_vec,
