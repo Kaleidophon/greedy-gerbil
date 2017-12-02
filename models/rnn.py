@@ -4,19 +4,24 @@ import torch.nn as nn
 from torch.autograd import Variable
 
 class RNNModel(nn.Module):
-    def __init__(self, vocab_size, image_size, hidden_size, output_size, num_layers=1):
+    def __init__(self, vocab_size, image_size, hidden_size, output_size, num_layers=1, cuda_enabled=False):
         super(RNNModel, self).__init__()
         # init properties
         self.num_layers = num_layers
         self.hidden_size = hidden_size
+        self.cuda_enabled = cuda_enabled
         # init network structure
         self.embedding = nn.Embedding(vocab_size, hidden_size)
-        self.gru = nn.GRU(hidden_size, hidden_size, num_layers)
+        self.gru = nn.RNN(hidden_size, hidden_size, num_layers)
         self.layer_transform = nn.Linear(image_size + hidden_size, output_size)
-        self.softmax = nn.Softmax(dim=1)
+        #self.softmax = nn.Softmax(dim=1)
+        self.softmax = nn.LogSoftmax(dim=1)
 
     def _initialize_gru_state(self):
-        return Variable(torch.zeros(1, 1, self.hidden_size))
+        var = Variable(torch.zeros(1, 1, self.hidden_size))
+        if self.cuda:
+            var = var.cuda()
+        return var
 
     def forward(self, question, image, gru_state=None):
         # encode input questions

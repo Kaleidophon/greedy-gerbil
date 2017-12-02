@@ -18,7 +18,8 @@ def train(model, dataset, iterations, learning_rate=.01, batch_size=100, cuda=Fa
     if cuda:
         model = model.cuda()
 
-    criterion = nn.CrossEntropyLoss()
+    #criterion = nn.CrossEntropyLoss()
+    criterion = nn.NLLLoss()
     optimizer = optim.Adagrad(model.parameters(), learning_rate)
     # start training
     for epoch in range(iterations):
@@ -59,6 +60,8 @@ if __name__ == "__main__":
         image_features2id_path="../data/VQA_img_features2id.json",
         inflate_vecs=False
     )
-    model = RNNModel(vec_collection.question_dim, IMAGE_FEATURE_SIZE, 256, vec_collection.answer_dim)
-    train(model, vec_collection, 1)
-    torch.save(model, "models/debug")
+    model = RNNModel(vec_collection.question_dim, IMAGE_FEATURE_SIZE, 256, vec_collection.answer_dim, cuda_enabled=True)
+    #This line is mysterious but prevents mysterious errors from cudnn (and took 2 hours of my sleep)
+    torch.backends.cudnn.enabled = False
+    train(model, vec_collection, 100, cuda=True)
+    torch.save(model, "../models/debugGRU256")
