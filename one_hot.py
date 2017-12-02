@@ -180,14 +180,14 @@ def save_vectors(data_vecs, target_dir, qid2set, convert=True):
 
 if __name__ == "__main__":
     # 1. Read in all the data sets to create a global question / answer vocabulary
-    #questions, answers, qid2set, aid2set = combine_data_sets("train", "valid", "test", unique_answers=True)
+    questions, answers, qid2set, aid2set = combine_data_sets("train", "valid", "test", unique_answers=True)
 
     # 2. Create one-hot vectors and the vocabulary
-    #data_vecs, qa_vocab = get_data_hot_vectors(questions, answers, convert=True)
+    data_vecs, qa_vocab = get_data_hot_vectors(questions, answers, convert=True)
 
     # 3. Save the vocabulary and the one-hot vectors using pickle
-    #save_qa_vocab(qa_vocab, "./data/qa_vocab.pickle")
-    #save_vectors(data_vecs, "./data/", qid2set, convert=False)
+    save_qa_vocab(qa_vocab, "./data/qa_vocab.pickle")
+    save_vectors(data_vecs, "./data/", qid2set, convert=False)
 
     # Example on how to load the pickled data and use it with the torch DataLoader class
     vec_collection = VQADataset(

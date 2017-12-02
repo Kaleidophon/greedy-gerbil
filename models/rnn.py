@@ -13,7 +13,7 @@ class RNNModel(nn.Module):
         self.embedding = nn.Embedding(vocab_size, hidden_size)
         self.gru = nn.GRU(hidden_size, hidden_size, num_layers)
         self.layer_transform = nn.Linear(image_size + hidden_size, output_size)
-        self.softmax = nn.Softmax()
+        self.softmax = nn.Softmax(dim=1)
 
     def _initialize_gru_state(self):
         return Variable(torch.zeros(1, 1, self.hidden_size))
