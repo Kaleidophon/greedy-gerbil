@@ -12,14 +12,14 @@ class RNNModel(nn.Module):
         self.cuda_enabled = cuda_enabled
         # init network structure
         self.embedding = nn.Embedding(vocab_size, hidden_size)
-        self.gru = nn.RNN(hidden_size, hidden_size, num_layers)
+        self.gru = nn.GRU(hidden_size, hidden_size, num_layers)
         self.layer_transform = nn.Linear(image_size + hidden_size, output_size)
         #self.softmax = nn.Softmax(dim=1)
         self.softmax = nn.LogSoftmax(dim=1)
 
     def _initialize_gru_state(self):
         var = Variable(torch.zeros(1, 1, self.hidden_size))
-        if self.cuda:
+        if self.cuda_enabled:
             var = var.cuda()
         return var
 

@@ -42,13 +42,13 @@ def train(model: nn.Module, dataset_train: VQADataset, dataset_valid:VQADataset,
     dataload_train = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, num_workers=4, drop_last=True)
     dataload_valid = DataLoader(dataset_valid, batch_size=len(dataset_valid), shuffle=False, num_workers=1)
 
-    criterion = nn.NLLLoss()
+    #criterion = nn.NLLLoss()
 
-    #criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adagrad([
         {'params': model.linearLayer.parameters()},
-        {'params': model.embedding.parameters(), 'lr': 0.01}
-    ], lr=1e-4 * 1)
+        {'params': model.embedding.parameters(), 'lr': 0.1}
+    ], lr=1e-3 * 1)
 
     for i_batch, sample_batched in enumerate(dataload_valid):
         valid_questions, valid_answers, valid_image, _, _, _ = sample_batched
@@ -111,7 +111,7 @@ if __name__ == "__main__":
 
     #model = torch.load("../models/debug")
     #test_eval(model, vec_train, True)
-    model = BoWModel(vec_train.question_dim, 20, 2048, vec_train.answer_dim)
-    train(model, vec_train, vec_valid, 100, cuda=False)
+    model = BoWModel(vec_train.question_dim, 2048, 2048, vec_train.answer_dim)
+    train(model, vec_train, vec_valid, 100, cuda=True)
     torch.save(model, "../models/debug1")
 
