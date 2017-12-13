@@ -3,45 +3,64 @@
 Helper classes for evaluating experiments.
 """
 
+# STD
+from collections import namedtuple
+
+# PROJECT
+from data_loading import VQADataset
+
+# CONST
+EvalResult = namedtuple("EvalResult", ["question_id", "target", "prediction"])
+
+
 class VQAEvaluator:
     '''
     Evaluation helper class for the VQA dataset.
     '''
     def __init__(self, data_set, model):
-        self.data_set = self._split_data_set(data_set)
+        self.data_set = data_set
         self.model = model
+        self.data = EvaluationData()
 
-    def _split_data_set(self, data_set):
-        '''
-        Returns dictionary with questions assigned to their respective splits.
-        '''
-        res = {}
-        for question in data_set:
-            res[question.split] = res.get(question.split, []) += [question]
-        return res
+    def __call__(self):
+        for vec_pair in self.data_set:
+            word_features, image_features = vec_pair.question_vec, vec_pair.image_features
+            question_id = vec_pair.question_id
+            target = vec_pair.answer_vec
 
-    def evaluate(self, split, multiple_choice=False):
-        '''
-        Evaluates model on given split.
+            prediction = self.model.forward(word_features, image_features)
 
-        Returns a dictionary with accuracies by answer type.
-        '''
-        res = {'all': 0., 'other': 0., 'yes/no': 0., 'number': 0.} # accuracies
-        count_atypes = dict(res)
-        for question in self.data_set[split]:
-            # TODO update according to final implementation
-            # assumption that predictions is a dict of form {'word': float}
-            predictions = self.model.answer(question.image_id, question.question)
-            if multiple_choice:
-                predictions = {answer.answer: predictions.get(answer.answer, 0.) for answer in question.answers}
-            model_answer = max(predictions, key=predictions.get)
-            if model_answer == question.choices:
-                res['all'] += 1.
-                res[question.atype] += 1.
-            # count answer types
-            count_atypes['all'] += 1.
-            count_atypes[question.atype] += 1.
-        # normalize
-        for atype in res:
-            res[atype] /= count_atypes[atype]
-        return res
+            self.data.add(EvalResult(question_id=question_id, target=target, prediction=prediction))
+
+
+
+class EvaluationData:
+
+    def __init__(self):
+        self.results = []
+
+    def __iter__(self):
+        return (result for result in self.results)
+
+    def __len__(self):
+        return len(self.results)
+
+    def __getitem__(self, item):
+        return self.results[item]
+
+    def add(self, result):
+        self.results.append(result)
+
+    @property
+    def top1(self):
+        pass
+
+    @property
+    def top10(self):
+        pass
+
+    def weakest_predictions(self):
+        pass
+
+    def strongest_predictions(self):
+        pass

@@ -15,7 +15,7 @@ class RNNModel(nn.Module):
         self.gru = nn.GRU(hidden_size, hidden_size, num_layers)
         self.layer_transform = nn.Linear(image_size + hidden_size, output_size)
         #self.softmax = nn.Softmax(dim=1)
-        self.softmax = nn.LogSoftmax(dim=1)
+        self.softmax = nn.LogSoftmax()
 
     def _initialize_gru_state(self):
         var = Variable(torch.zeros(1, 1, self.hidden_size))

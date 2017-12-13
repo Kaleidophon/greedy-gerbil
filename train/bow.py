@@ -111,7 +111,7 @@ if __name__ == "__main__":
 
     #model = torch.load("../models/debug")
     #test_eval(model, vec_train, True)
-    model = BoWModel(vec_train.question_dim, 2048, 2048, vec_train.answer_dim)
-    train(model, vec_train, vec_valid, 100, cuda=True)
+    model = BoWModel(vec_train.question_dim, 500, 2048, vec_train.answer_dim)
+    train(model, vec_train, vec_valid, 100, cuda=False)
     torch.save(model, "../models/debug1")
 
