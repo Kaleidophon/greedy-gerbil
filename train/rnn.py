@@ -11,28 +11,43 @@ from torch.utils.data.dataloader import DataLoader
 from models.rnn import RNNModel
 from data_loading import *
 
-def get_loss(model: nn.Module, dataset: VQADataset, batch=1000, cuda=False):
-    if cuda:
-        model = model.cuda()
+def prepare_batch(questions, images, answers, padding_idx, cuda=False):
+    res_question_lengths = []
+    for question in questions:
+        res_question_lengths.append(list(question).index(padding_idx))
+    # prepare for computation
+    res_questions = Variable(torch.LongTensor(questions))
+    res_images = Variable(images)
+    res_answers = Variable(torch.LongTensor(answers[0]))
+    res_question_lengths = Variable(torch.LongTensor(res_question_lengths))
+    if cuda: # CUDA for David
+        res_questions = res_questions.cuda()
+        res_images = res_images.cuda()
+        res_answers = res_answers.cuda()
+    return res_questions, res_images, res_answers, res_question_lengths
 
-    loss = 0
-    criterion = nn.NLLLoss()
-    dataload = DataLoader(dataset, batch_size=batch, shuffle=False, num_workers=4)
-    for i_batch, sample_batched in enumerate(dataload):
-        valid_questions, valid_answers, valid_image, _, _, _ = sample_batched
-        valid_questions = Variable(torch.LongTensor(list(filter((dataset.question_dim).__ne__,
-                                                                valid_questions.view(valid_questions.numel())))), volatile=True)
-        valid_answers = Variable(valid_answers[0], volatile=True)
-        valid_image = Variable(valid_image.view(valid_image.numel()), volatile=True)
+# def get_loss(model: nn.Module, dataset: VQADataset, batch=1000, cuda=False):
+#     if cuda:
+#         model = model.cuda()
 
-        if cuda:
-            valid_questions = valid_questions.cuda()
-            valid_image = valid_image.cuda()
-            valid_answers = valid_answers.cuda()
-        if i_batch % 1000 == 0 : print("Batch number: ", i_batch)
-        outputs = model(valid_questions, valid_image)
-        loss += criterion(outputs, valid_answers)
-    return loss
+#     loss = 0
+#     criterion = nn.NLLLoss()
+#     dataload = DataLoader(dataset, batch_size=batch, shuffle=False, num_workers=4)
+#     for i_batch, sample_batched in enumerate(dataload):
+#         valid_questions, valid_answers, valid_image, _, _, _ = sample_batched
+#         valid_questions = Variable(torch.LongTensor(list(filter((dataset.question_dim).__ne__,
+#                                                                 valid_questions.view(valid_questions.numel())))), volatile=True)
+#         valid_answers = Variable(valid_answers[0], volatile=True)
+#         valid_image = Variable(valid_image.view(valid_image.numel()), volatile=True)
+
+#         if cuda:
+#             valid_questions = valid_questions.cuda()
+#             valid_image = valid_image.cuda()
+#             valid_answers = valid_answers.cuda()
+#         if i_batch % 1000 == 0 : print("Batch number: ", i_batch)
+#         outputs = model(valid_questions, valid_image)
+#         loss += criterion(outputs, valid_answers)
+#     return loss
 
 def test(model, dataset, cuda=False):
     dataset_loader = DataLoader(dataset, batch_size=len(dataset), shuffle=False, num_workers=4, drop_last=True)
@@ -42,24 +57,14 @@ def test(model, dataset, cuda=False):
     loss = 0.
     for i_batch, batch in enumerate(dataset_loader):
         questions, answers, images, _, _, _ = batch
-        answers = answers[0]
-        for question, image, answer in zip(questions, images, answers):
-            # prepare variables
-            question = Variable(torch.LongTensor(list(filter((dataset.question_dim).__ne__, question))))
-            answer = Variable(torch.LongTensor([answer]))
-            image = Variable(image)
-            if cuda:
-                question = question.cuda()
-                image = image.cuda()
-                answer = answer.cuda()
-
-            # perform forward pass
-            model_answer = model(question, image)
-            m = torch.max(model_answer.cpu(), 1)[1]
-            m = m.data.numpy()
-            loss += criterion(model_answer, answer)
-            if m[0] == answer.cpu().data.numpy()[0]:
-                correct += 1
+        questions, images, answers, question_lengths = prepare_batch(questions, images, answers, dataset.question_dim)
+        # perform forward pass
+        model_answers = model(questions, images)
+        m = torch.max(model_answers.cpu(), 1)[1]
+        m = m.data.numpy()
+        loss += criterion(model_answers, answers)
+        if m[0] == answer.cpu().data.numpy()[0]:
+            correct += 1
     print(loss.data[0]/len(dataset),correct/len(dataset))
 
 
@@ -87,31 +92,19 @@ def train(model, dataset, valid_set, iterations, batch_size=100, cuda=False):
         # iterate over batches
 
         for i_batch, batch in enumerate(dataset_loader):
-            #print("training in epoch", epoch+1, "on batch", i_batch+1)
+            print("training in epoch", epoch+1, "on batch", i_batch+1)
             loss = 0.
             # separate batch into relevant parts
             questions, answers, images, _, _, _ = batch
-            # choose top answer
-            answers = answers[0]
+            # prepare the batch
+            questions, images, answers, question_lengths = prepare_batch(questions, images, answers, dataset.question_dim)
             # zero the parameter gradients
             optimizer.zero_grad()
-            # iterate over questions
-            for question, image, answer in zip(questions, images, answers):
-                # prepare variables
-                question = Variable(torch.LongTensor(list(filter((dataset.question_dim).__ne__, question))))
-                answer = Variable(torch.LongTensor([answer]))
-                image = Variable(image)
-                if cuda:
-                    question = question.cuda()
-                    image = image.cuda()
-                    answer = answer.cuda()
-
-                # perform forward pass
-                model_answer = model(question, image)
-                # calculate and backpropagate loss
-                loss += criterion(model_answer, answer)
-            #print("loss on this batch:", loss.data[0]/batch_size)
-            loss /= batch_size
+            # perform forward pass
+            model_answers = model(questions, images, question_lengths)
+            # calculate loss
+            loss = criterion(model_answers, answers)
+            # backpropagate
             loss.backward()
             optimizer.step()
             print(loss)
@@ -122,24 +115,23 @@ def train(model, dataset, valid_set, iterations, batch_size=100, cuda=False):
 
 if __name__ == "__main__":
     vec_collection = VQADataset(
-        load_path="../data/vqa_vecs_train.pickle",
-        image_features_path="../data/VQA_image_features.h5",
-        image_features2id_path="../data/VQA_img_features2id.json",
+        load_path="./data/vqa_vecs_train.pickle",
+        image_features_path="./data/VQA_image_features.h5",
+        image_features2id_path="./data/VQA_img_features2id.json",
         inflate_vecs=False
     )
-
     vec_valid = VQADataset(
-        load_path="../data/vqa_vecs_valid.pickle",
-        image_features_path="../data/VQA_image_features.h5",
-        image_features2id_path="../data/VQA_img_features2id.json",
+        load_path="./data/vqa_vecs_valid.pickle",
+        image_features_path="./data/VQA_image_features.h5",
+        image_features2id_path="./data/VQA_img_features2id.json",
         inflate_vecs=False
     )
     #This line is mysterious but prevents mysterious errors from cudnn (and took 2 hours of my sleep)
     torch.backends.cudnn.enabled = False
 
-    model = RNNModel(vec_collection.question_dim, IMAGE_FEATURE_SIZE, 256, vec_collection.answer_dim, cuda_enabled=True)
-    train(model, vec_collection, vec_valid, 5, 1000, cuda=True)
-    torch.save(model, "../models/debugGRU256")
+    model = RNNModel(vec_collection.question_dim, IMAGE_FEATURE_SIZE, 128, vec_collection.answer_dim, cuda_enabled=False)
+    train(model, vec_collection, vec_valid, 5, 100, cuda=False)
+    torch.save(model, "../models/debugGRU128")
 
     #model = torch.load("../models/debugGRU256")
     #test(model.cuda(), vec_collection, True)
