@@ -129,8 +129,8 @@ if __name__ == "__main__":
     #This line is mysterious but prevents mysterious errors from cudnn (and took 2 hours of my sleep)
     torch.backends.cudnn.enabled = False
 
-    model = RNNModel(vec_collection.question_dim, IMAGE_FEATURE_SIZE, 128, vec_collection.answer_dim, cuda_enabled=False)
-    train(model, vec_collection, vec_valid, 5, 100, cuda=False)
+    model = RNNModel(vec_collection.question_dim, IMAGE_FEATURE_SIZE, 128, vec_collection.answer_dim, cuda_enabled=True)
+    train(model, vec_collection, vec_valid, 5, 100, cuda=True)
     torch.save(model, "../models/debugGRU128")
 
     #model = torch.load("../models/debugGRU256")
