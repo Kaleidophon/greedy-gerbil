@@ -11,9 +11,17 @@ import torch
 import numpy as np
 
 
+def adjust_learning_rate(optimizer, epoch):
+    """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = param_group['lr'] * ((epoch-1) ** 0.5) / (epoch ** 0.5)
+
 def get_loss(model: nn.Module, dataset: VQADataset, batch=1000, cuda=False):
     if cuda:
         model = model.cuda()
+
+    dropout_before = model.dropout_enabled
+    model.dropout_enabled = False
 
     loss = 0
     criterion = nn.NLLLoss()
@@ -31,11 +39,15 @@ def get_loss(model: nn.Module, dataset: VQADataset, batch=1000, cuda=False):
         #print("Batch number: ", i_batch)
         outputs = model(valid_questions, valid_image)
         loss += criterion(outputs, valid_answers)
+    model.dropout_enabled = dropout_before
     return loss
 
 def test_eval(model: nn.Module, dataset: VQADataset, batch=1000, cuda=False):
     if cuda:
         model = model.cuda()
+
+    dropout_before = model.dropout_enabled
+    model.dropout_enabled = False
 
     correct = 0
 
@@ -53,10 +65,11 @@ def test_eval(model: nn.Module, dataset: VQADataset, batch=1000, cuda=False):
         outputs = model(valid_questions, valid_image)
         m = torch.max(outputs.cpu(), 1)
         m = m[1].data.numpy()
-        for i in range(len(sample_batched)):
+        for i in range(len(m)):
             if m[i] == valid_answers[i]:
                 correct += 1
         print("Batch number: ", i_batch)
+    model.dropout_enabled = dropout_before
     print(correct / len(dataset) * 100)
 
 
@@ -76,9 +89,15 @@ def train(model: nn.Module, dataset_train: VQADataset, dataset_valid:VQADataset,
         {'params': model.embedding.parameters(), 'lr': 0.1}
     ], lr=1e-3 * 1)
 
+    # optimizer = optim.Adam([
+    #     {'params': model.linearLayer.parameters()},
+    #     {'params': model.embedding.parameters(), 'lr': 0.1}
+    # ], lr=1e-3 * 1)
+
     while True:
         epoch += 1
         print("Epoch:", epoch)
+
         for i_batch, sample_batched in enumerate(dataload_train):
             question, answer, image, _, _, _ = sample_batched
 
@@ -102,8 +121,8 @@ def train(model: nn.Module, dataset_train: VQADataset, dataset_valid:VQADataset,
             loss.backward()
             optimizer.step()
 
-            if i_batch % 100 == 99:
-                print(i_batch, loss)
+            # if i_batch % 100 == 99:
+            #     print(i_batch, loss)
 
             # print statistics
         loss_valid = get_loss(model, dataset_valid, 1000, True).cpu().data.numpy()
@@ -121,23 +140,30 @@ def train(model: nn.Module, dataset_train: VQADataset, dataset_valid:VQADataset,
 
 
 if __name__ == "__main__":
+    #small_data or big_data
+    data_type = "small_data"
+    #where to save/load model
+    model_name = "../models/" + data_type + "/BoW_512_drop0.8"
+
     vec_train = VQADataset(
-        load_path="../data/vqa_vecs_train.pickle",
-        image_features_path="../data/VQA_image_features.h5",
-        image_features2id_path="../data/VQA_img_features2id.json",
+        load_path="../data/" + data_type + "/vqa_vecs_train.pickle",
+        image_features_path="../data/" + data_type + "/VQA_image_features.h5",
+        image_features2id_path="../data/" + data_type + "/VQA_img_features2id.json",
         inflate_vecs=False
     )
     vec_valid = VQADataset(
-        load_path="../data/vqa_vecs_valid.pickle",
-        image_features_path="../data/VQA_image_features.h5",
-        image_features2id_path="../data/VQA_img_features2id.json",
+        load_path="../data/" + data_type + "/vqa_vecs_valid.pickle",
+        image_features_path="../data/" + data_type + "/VQA_image_features.h5",
+        image_features2id_path="../data/" + data_type + "/VQA_img_features2id.json",
         inflate_vecs=False
     )
 
 
-    #model = torch.load("../models/BoW_256")
-    #test_eval(model, vec_valid, 1000, cuda=True)
-    model = BoWModel(vec_train.question_dim, 128, 2048, vec_train.answer_dim)
+
+    # model = torch.load(model_name)
+    # test_eval(model, vec_valid, 1000, cuda=True)
+    model = BoWModel(vec_train.question_dim, 512, 2048, vec_train.answer_dim, dropout_prob=0.9)
     train(model, vec_train, vec_valid, batch_size=1000, cuda=True)
-    torch.save(model, "../models/BoW_128")
+    torch.save(model, model_name)
+    test_eval(model, vec_valid, 1000, cuda=True)
 

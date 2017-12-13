@@ -35,6 +35,7 @@ class RNNModel(nn.Module):
         # pass everything to GRU
         encodings, gru_states = self.gru(embeddings, gru_states)
         # get last states by selecting state at question's last non-padding index
+        #last_states = encodings.gather(0, question_lengths.view(-1,1))
         last_states = encodings.index_select(0, question_lengths)
         # predict answers
         question_vectors = torch.cat((last_states, images))

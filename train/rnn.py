@@ -24,6 +24,7 @@ def prepare_batch(questions, images, answers, padding_idx, cuda=False):
         res_questions = res_questions.cuda()
         res_images = res_images.cuda()
         res_answers = res_answers.cuda()
+        res_question_lengths = res_question_lengths.cuda()
     return res_questions, res_images, res_answers, res_question_lengths
 
 # def get_loss(model: nn.Module, dataset: VQADataset, batch=1000, cuda=False):
@@ -63,7 +64,7 @@ def test(model, dataset, cuda=False):
         m = torch.max(model_answers.cpu(), 1)[1]
         m = m.data.numpy()
         loss += criterion(model_answers, answers)
-        if m[0] == answer.cpu().data.numpy()[0]:
+        if m[0] == answers.cpu().data.numpy()[0]:
             correct += 1
     print(loss.data[0]/len(dataset),correct/len(dataset))
 
@@ -97,7 +98,7 @@ def train(model, dataset, valid_set, iterations, batch_size=100, cuda=False):
             # separate batch into relevant parts
             questions, answers, images, _, _, _ = batch
             # prepare the batch
-            questions, images, answers, question_lengths = prepare_batch(questions, images, answers, dataset.question_dim)
+            questions, images, answers, question_lengths = prepare_batch(questions, images, answers, dataset.question_dim, cuda)
             # zero the parameter gradients
             optimizer.zero_grad()
             # perform forward pass
@@ -114,23 +115,28 @@ def train(model, dataset, valid_set, iterations, batch_size=100, cuda=False):
     print('Training complete.')
 
 if __name__ == "__main__":
-    vec_collection = VQADataset(
-        load_path="./data/vqa_vecs_train.pickle",
-        image_features_path="./data/VQA_image_features.h5",
-        image_features2id_path="./data/VQA_img_features2id.json",
+    #small_data or big_data
+    data_type = "small_data"
+    # where to save/load model
+    model_name = "../models/" + data_type + "/BoW_512_drop0.8"
+
+    vec_train = VQADataset(
+        load_path="../data/" + data_type + "/vqa_vecs_train.pickle",
+        image_features_path="../data/" + data_type + "/VQA_image_features.h5",
+        image_features2id_path="../data/" + data_type + "/VQA_img_features2id.json",
         inflate_vecs=False
     )
     vec_valid = VQADataset(
-        load_path="./data/vqa_vecs_valid.pickle",
-        image_features_path="./data/VQA_image_features.h5",
-        image_features2id_path="./data/VQA_img_features2id.json",
+        load_path="../data/" + data_type + "/vqa_vecs_valid.pickle",
+        image_features_path="../data/" + data_type + "/VQA_image_features.h5",
+        image_features2id_path="../data/" + data_type + "/VQA_img_features2id.json",
         inflate_vecs=False
     )
     #This line is mysterious but prevents mysterious errors from cudnn (and took 2 hours of my sleep)
     torch.backends.cudnn.enabled = False
 
-    model = RNNModel(vec_collection.question_dim, IMAGE_FEATURE_SIZE, 128, vec_collection.answer_dim, cuda_enabled=True)
-    train(model, vec_collection, vec_valid, 5, 100, cuda=True)
+    model = RNNModel(vec_train.question_dim, IMAGE_FEATURE_SIZE, 128, vec_train.answer_dim, cuda_enabled=True)
+    train(model, vec_train, vec_valid, 5, 100, cuda=True)
     torch.save(model, "../models/debugGRU128")
 
     #model = torch.load("../models/debugGRU256")
