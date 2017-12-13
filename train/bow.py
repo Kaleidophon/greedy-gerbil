@@ -11,55 +11,74 @@ import torch
 import numpy as np
 
 
-def test_eval(model: nn.Module, dataset: VQADataset, cuda=False):
+def get_loss(model: nn.Module, dataset: VQADataset, batch=1000, cuda=False):
     if cuda:
         model = model.cuda()
-    dataload = DataLoader(dataset, batch_size=len(dataset), shuffle=False, num_workers=4)
+
+    loss = 0
+    criterion = nn.NLLLoss()
+    dataload = DataLoader(dataset, batch_size=batch, shuffle=False, num_workers=4)
     for i_batch, sample_batched in enumerate(dataload):
         valid_questions, valid_answers, valid_image, _, _, _ = sample_batched
-        valid_questions = Variable(valid_questions.long())
+        valid_questions = Variable(valid_questions.long(), volatile=True)
+        valid_answers = Variable(valid_answers[0], volatile=True)
+        valid_image = Variable(valid_image, volatile=True)
+
+        if cuda:
+            valid_questions = valid_questions.cuda()
+            valid_image = valid_image.cuda()
+            valid_answers = valid_answers.cuda()
+        #print("Batch number: ", i_batch)
+        outputs = model(valid_questions, valid_image)
+        loss += criterion(outputs, valid_answers)
+    return loss
+
+def test_eval(model: nn.Module, dataset: VQADataset, batch=1000, cuda=False):
+    if cuda:
+        model = model.cuda()
+
+    correct = 0
+
+    dataload = DataLoader(dataset, batch_size=batch, shuffle=False, num_workers=4)
+    for i_batch, sample_batched in enumerate(dataload):
+        valid_questions, valid_answers, valid_image, _, _, _ = sample_batched
+        valid_questions = Variable(valid_questions.long(), volatile=True)
         valid_answers = valid_answers[0].numpy()
-        valid_image = Variable(valid_image)
+        valid_image = Variable(valid_image, volatile=True)
 
         if cuda:
             valid_questions = valid_questions.cuda()
             valid_image = valid_image.cuda()
 
-    outputs = model(valid_questions, valid_image)
-    m = torch.max(outputs.cpu(), 1)[1]
-    m = m.data.numpy()
-    correct = 0
-    for i in range(len(m)):
-        if m[i] == valid_answers[i]:
-            correct += 1
-    print(correct / len(m) * 100)
+        outputs = model(valid_questions, valid_image)
+        m = torch.max(outputs.cpu(), 1)
+        m = m[1].data.numpy()
+        for i in range(len(sample_batched)):
+            if m[i] == valid_answers[i]:
+                correct += 1
+        print("Batch number: ", i_batch)
+    print(correct / len(dataset) * 100)
 
 
-def train(model: nn.Module, dataset_train: VQADataset, dataset_valid:VQADataset, iterations, batch_size=100, learn_rate=0.8, cuda=False):
+def train(model: nn.Module, dataset_train: VQADataset, dataset_valid:VQADataset, batch_size=100, learn_rate=0.8, cuda=False):
     if cuda:
         model = model.cuda()
 
     dataload_train = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, num_workers=4, drop_last=True)
-    dataload_valid = DataLoader(dataset_valid, batch_size=len(dataset_valid), shuffle=False, num_workers=1)
 
-    #criterion = nn.NLLLoss()
-
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.NLLLoss()
+    last_loss = 2000000
+    epoch_unincreased = 0
+    epoch = 0
+    #criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adagrad([
         {'params': model.linearLayer.parameters()},
         {'params': model.embedding.parameters(), 'lr': 0.1}
     ], lr=1e-3 * 1)
 
-    for i_batch, sample_batched in enumerate(dataload_valid):
-        valid_questions, valid_answers, valid_image, _, _, _ = sample_batched
-        valid_questions = Variable(valid_questions.long(), volatile=True)
-        valid_answers = Variable(valid_answers[0], volatile=True)
-        valid_image = Variable(valid_image, volatile=True)
-        if cuda:
-            valid_questions = valid_questions.cuda()
-            valid_answers = valid_answers.cuda()
-            valid_image = valid_image.cuda()
-    for epoch in range(iterations):
+    while True:
+        epoch += 1
+        print("Epoch:", epoch)
         for i_batch, sample_batched in enumerate(dataload_train):
             question, answer, image, _, _, _ = sample_batched
 
@@ -78,18 +97,25 @@ def train(model: nn.Module, dataset_train: VQADataset, dataset_valid:VQADataset,
 
             # forward + backward + optimize
             outputs = model(question, image)
-            #a = torch.max(outputs, dim=1)
-            #print(a)
             loss = criterion(outputs, answer)
+
             loss.backward()
             optimizer.step()
 
-            # print statistics
-        outputs = model(valid_questions, valid_image)
-        loss_valid = criterion(outputs, valid_answers)
+            if i_batch % 100 == 99:
+                print(i_batch, loss)
 
-        print('[%d] loss_valid: %.3f' % (epoch + 1, loss_valid[0]))
-        test_eval(model, dataset_valid, cuda)
+            # print statistics
+        loss_valid = get_loss(model, dataset_valid, 1000, True).cpu().data.numpy()
+        print('[%d] loss_valid: %.3f' % (epoch, loss_valid))
+        if loss_valid > last_loss:
+            epoch_unincreased += 1
+        else:
+            epoch_unincreased = 0
+
+        last_loss = loss_valid
+        if epoch_unincreased >= 3:
+            break
 
 
 
@@ -109,9 +135,9 @@ if __name__ == "__main__":
     )
 
 
-    #model = torch.load("../models/debug")
-    #test_eval(model, vec_train, True)
-    model = BoWModel(vec_train.question_dim, 2048, 2048, vec_train.answer_dim)
-    train(model, vec_train, vec_valid, 100, cuda=True)
-    torch.save(model, "../models/debug1")
+    #model = torch.load("../models/BoW_256")
+    #test_eval(model, vec_valid, 1000, cuda=True)
+    model = BoWModel(vec_train.question_dim, 128, 2048, vec_train.answer_dim)
+    train(model, vec_train, vec_valid, batch_size=1000, cuda=True)
+    torch.save(model, "../models/BoW_128")
 

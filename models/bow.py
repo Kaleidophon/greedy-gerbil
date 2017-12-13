@@ -6,8 +6,8 @@ class BoWModel(nn.Module):
         super().__init__()
         self.embedding = nn.Embedding(vocab_features_dim + 1, embedding_dim, padding_idx=vocab_features_dim)
         self.linearLayer = nn.Linear(image_features_dim + embedding_dim, output_dim)
-        self.softmax = nn.Softmax(dim=1)
-        #self.softmax = nn.LogSoftmax(dim=1)
+        #self.softmax = nn.Softmax(dim=1)
+        self.softmax = nn.LogSoftmax(dim=1)
 
     def forward(self, word_features, image_features):
         emb = self.embedding(word_features)
