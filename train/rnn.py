@@ -14,8 +14,12 @@ from data_loading import *
 def prepare_batch(questions, images, answers, padding_idx, cuda=False):
     res_question_lengths = []
     for question in questions:
-        res_question_lengths.append(list(question).index(padding_idx))
+        if padding_idx not in list(question):
+            res_question_lengths.append(len(question)-1)
+        else:
+            res_question_lengths.append(list(question).index(padding_idx)-1)
     # prepare for computation
+    print(max(res_question_lengths))
     res_questions = Variable(torch.LongTensor(questions))
     res_images = Variable(images)
     res_answers = Variable(torch.LongTensor(answers[0]))
@@ -136,7 +140,7 @@ if __name__ == "__main__":
     torch.backends.cudnn.enabled = False
 
     model = RNNModel(vec_train.question_dim, IMAGE_FEATURE_SIZE, 128, vec_train.answer_dim, cuda_enabled=True)
-    train(model, vec_train, vec_valid, 5, 100, cuda=True)
+    train(model, vec_train, vec_valid, 10, batch_size=1000, cuda=True)
     torch.save(model, "../models/debugGRU128")
 
     #model = torch.load("../models/debugGRU256")

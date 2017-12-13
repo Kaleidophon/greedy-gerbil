@@ -16,7 +16,7 @@ class RNNModel(nn.Module):
         self.layer_transform = nn.Linear(image_size + hidden_size, output_size)
         #self.softmax = nn.Softmax(dim=1)
         # self.softmax = nn.LogSoftmax(dim=1)
-        self.softmax = nn.LogSoftmax()
+        self.softmax = nn.LogSoftmax(dim=1)
 
     def _initialize_gru_states(self, batch_size):
         var = Variable(torch.zeros(self.num_layers, batch_size, self.hidden_size))
@@ -35,9 +35,10 @@ class RNNModel(nn.Module):
         # pass everything to GRU
         encodings, gru_states = self.gru(embeddings, gru_states)
         # get last states by selecting state at question's last non-padding index
-        #last_states = encodings.gather(0, question_lengths.view(-1,1))
-        last_states = encodings.index_select(0, question_lengths)
+        question_lengths = question_lengths.view(1, -1, 1).expand(1, encodings.size(1), encodings.size(2))
+        last_states = encodings.gather(0, question_lengths).view(encodings.size(1), encodings.size(2))
+        #last_states = encodings.index_select(0, question_lengths)
         # predict answers
-        question_vectors = torch.cat((last_states, images))
+        question_vectors = torch.cat((last_states, images), 1)
         answers = self.softmax(self.layer_transform(question_vectors))
         return answers
