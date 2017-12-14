@@ -37,6 +37,8 @@ def get_loss(model: nn.Module, dataset: VQADataset, batch=1000, cuda=False):
 
     # dropout_before = model.dropout_enabled
     # model.dropout_enabled = False
+    dropout = model.gru.dropout
+    model.gru.dropout= 0
 
     loss = 0
     criterion = nn.NLLLoss()
@@ -48,14 +50,16 @@ def get_loss(model: nn.Module, dataset: VQADataset, batch=1000, cuda=False):
         model_answers = model(questions, images, question_lengths)
         loss += criterion(model_answers, answers)
     # model.dropout_enabled = dropout_before
+    model.gru.dropout = dropout
     return loss
 
 def test(model, dataset, cuda=False):
     dataset_loader = DataLoader(dataset, batch_size=1000, shuffle=False, num_workers=4, drop_last=True)
-    #criterion = nn.CrossEntropyLoss()
-    criterion = nn.NLLLoss()
     correct = 0
-    loss = 0.
+
+    dropout = model.gru.dropout
+    model.gru.dropout = 0
+
     for i_batch, batch in enumerate(dataset_loader):
         questions, answers, images, _, _, _ = batch
         questions, images, answers, question_lengths = prepare_batch(questions, images, answers, dataset.question_dim, True, True)
@@ -69,6 +73,7 @@ def test(model, dataset, cuda=False):
                 correct += 1
         print("Batch number: ", i_batch)
     print(correct/len(dataset))
+    model.gru.dropout = dropout
 
 
 def train(model, dataset, valid_set, batch_size=100, cuda=False):
