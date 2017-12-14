@@ -4,16 +4,16 @@ Helper classes for evaluating experiments.
 """
 
 # STD
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 
 # EXT
-import numpy as np
 import torch
 from torch.autograd import Variable
 from torch.utils.data.dataloader import DataLoader
 
 # PROJECT
 from data_loading import VQADataset
+from one_hot import combine_data_sets
 
 # CONST
 EvalResult = namedtuple("EvalResult", ["question_id", "top1", "top5", "prediction_diff"])
@@ -24,12 +24,13 @@ class VQAEvaluator:
     """
     Evaluation helper class for the VQA dataset.
     """
-    def __init__(self, data_set, model, verbosity=1):
+    def __init__(self, data_set, model, questions=None, verbosity=1):
         self.data_set = data_set
         self.model = model
-        self.data = EvaluationData()
+        self.data = EvaluationData(questions=questions)
         self.evaluated = False
         self.verbosity = verbosity
+        self.question = questions
 
     def eval(self):
         if not self.evaluated:
@@ -63,7 +64,7 @@ class VQAEvaluator:
         self.eval()
         return {
             "top1": self.data.top1,
-            "top5": self.data.top10,
+            "top5": self.data.top5,
             "strongest": self.data.strongest_predictions(strongest_n),
             "weakest": self.data.weakest_predictions(weakest_n)
         }
@@ -77,13 +78,17 @@ class VQAEvaluator:
 
 class EvaluationData:
 
-    def __init__(self, verbosity=1):
+    def __init__(self, verbosity=1, questions=None):
         self.results = []
         self.data = []
         self.top1_counter = 0
         self.top5_counter = 0
+        self.top1_counter_by_category = defaultdict(int)  # Number of correct predictions per category
+        self.top5_counter_by_category = defaultdict(int)  # Number of correct prediction in the top 5 per category
+        self.instances_by_category = defaultdict(int)  # Number of questions per question category
         self.aggregated = False
         self.verbosity = verbosity
+        self.questions = questions
 
     def __iter__(self):
         self.aggregate()
@@ -119,15 +124,25 @@ class EvaluationData:
                 answer_ranks = {answer_index: rank for rank, answer_index in enumerate(sorted_answers)}  # For diff
                 top1, top5 = False, False
 
+                if self.questions is not None:
+                    question = self.questions[question_id]
+                    self.instances_by_category[question.atype] += 1
+
                 # Top1
                 if target == sorted_answers[0]:
                     top1 = True
                     self.top1_counter += 1
 
+                    if self.questions is not None:
+                        self.top1_counter_by_category[question.atype] += 1
+
                 # Top10
                 if target in sorted_answers[:5]:
                     top5 = True
                     self.top5_counter += 1
+
+                    if self.questions is not None:
+                        self.top5_counter_by_category[question.atype] += 1
 
                 # Difference prediction actual target
                 # Get the rank of the actual answer in the predictions - should ideally be zero
@@ -139,32 +154,71 @@ class EvaluationData:
     @property
     def top1(self):
         self.aggregate()
-        return self.top1_counter / len(self)
+
+        if self.questions is None:
+            return self.top1_counter / len(self)
+        else:
+            top1_results = {"all": self.top1_counter / len(self)}
+            top1_results.update(
+                {
+                    category: count / self.instances_by_category[category]
+                    for category, count in self.top1_counter_by_category.items()
+                }
+            )
+            return top1_results
 
     @property
-    def top10(self):
+    def top5(self):
         self.aggregate()
-        return self.top5_counter / len(self)
+
+        if self.questions is None:
+            return self.top5_counter / len(self)
+        else:
+            top5_results = {"all": self.top5_counter / len(self)}
+            top5_results.update(
+                {
+                    category: count / self.instances_by_category[category]
+                    for category, count in self.top5_counter_by_category.items()
+                }
+            )
+            return top5_results
 
     def weakest_predictions(self, n=50):
-        predictions_sorted_by_diff = sorted(self.results, key=lambda res: res.prediction_diff, reverse=True)
-        return predictions_sorted_by_diff[:n]
+        results_sorted_by_diff = sorted(self.results, key=lambda res: res.prediction_diff, reverse=True)
+
+        if self.questions is None:
+            return results_sorted_by_diff[:n]
+        else:
+            return [
+                (self.questions[result.question_id].question, result.prediction_diff)
+                for result in results_sorted_by_diff[:n]
+            ]
 
     def strongest_predictions(self, n=50):
-        predictions_sorted_by_diff = sorted(self.results, key=lambda res: res.prediction_diff)
-        return predictions_sorted_by_diff[:n]
+        results_sorted_by_diff = sorted(self.results, key=lambda res: res.prediction_diff)
+
+        if self.questions is None:
+            return results_sorted_by_diff[:n]
+        else:
+            return [
+                (self.questions[result.question_id].question, result.prediction_diff)
+                for result in results_sorted_by_diff[:n]
+            ]
 
 
 if __name__ == "__main__":
+    # Load resources
     vec_test = VQADataset(
         load_path="../data/vqa_vecs_test.pickle",
         image_features_path="../data/VQA_image_features.h5",
         image_features2id_path="../data/VQA_img_features2id.json",
         inflate_vecs=False
     )
-    model = torch.load("../models/debug1")
+    # map_location enables to load a CUDA trained model, wtf
+    model = torch.load("../models/BoW_256_drop0.8", map_location=lambda storage, location: storage)
+    questions, _, _, _ = combine_data_sets("train", "valid", "test", unique_answers=True)
 
-    evaluator = VQAEvaluator(vec_test, model)
+    evaluator = VQAEvaluator(vec_test, model, questions)
     evaluator.eval()
 
     result = evaluator.results(strongest_n=10, weakest_n=10)
