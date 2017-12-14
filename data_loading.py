@@ -16,7 +16,7 @@ from torch.utils.data import Dataset
 
 # CONST
 DATA_SET_TYPES = ("test", "train", "valid")
-DATA_SET_PATH = os.path.dirname(__file__) + "/data/vqa_{}_{}.gzip"
+DATA_SET_PATH = os.path.dirname(__file__) + "/data/small_data/vqa_{}_{}.gzip"
 QAVectors = namedtuple(
     "QAVector",
     [

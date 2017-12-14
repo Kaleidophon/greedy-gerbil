@@ -10,6 +10,8 @@ from collections import namedtuple, defaultdict
 import torch
 from torch.autograd import Variable
 from torch.utils.data.dataloader import DataLoader
+import torch.nn as nn
+
 
 # PROJECT
 from data_loading import VQADataset
@@ -24,9 +26,19 @@ class VQAEvaluator:
     """
     Evaluation helper class for the VQA dataset.
     """
-    def __init__(self, data_set, model, questions=None, verbosity=1):
+    def __init__(self, data_set, model, batch_size=1, questions=None, verbosity=1):
         self.data_set = data_set
         self.model = model
+        self.batch_size = batch_size
+
+        # Don't use dropout during evaluation
+        # BoW
+        if hasattr(self.model, "dropout"):
+            self.model.dropout = nn.Dropout(0)
+        # RNN w/ GRUs
+        elif hasattr(self.model, "gru"):
+            self.model.gru.dropout = 0
+
         self.data = EvaluationData(questions=questions)
         self.evaluated = False
         self.verbosity = verbosity
@@ -37,23 +49,26 @@ class VQAEvaluator:
             size = len(self.data_set)
 
             if self.verbosity > 0: print("Evaluating model...", flush=True, end="")
-            dataloader = DataLoader(self.data_set, batch_size=1, shuffle=False, num_workers=4)
+            dataloader = DataLoader(self.data_set, batch_size=self.batch_size, shuffle=False, num_workers=4)
             for n, batch in enumerate(dataloader):
+                current_batch_size = len(batch[0])
                 if self.verbosity > 0:
                     print(
-                        "\rCollecting predictions {}/{} ({:.2f} % complete)".format(n+1, size, (n+1) / size * 50),
-                        flush=True, end=""
+                        "\rCollecting predictions {}/{} ({:.2f} % complete)".format(
+                            (n+1)*self.batch_size, size, (n+1)*current_batch_size / size * 50
+                        ), flush=True, end=""
                     )
 
                 question_features, target, image_features, _, question_id, answer_id = batch
-                question_id = question_id.numpy()[0]
+                question_id = question_id.numpy()
                 question_features = Variable(question_features.long())
-                target = int(target[0].numpy()[0])
+                target = target[0].numpy()
                 image_features = Variable(image_features)
 
-                predictions = self.model(question_features, image_features).data.numpy()[0]
+                predictions = self.model(question_features, image_features).data.numpy()
 
-                self.data.add(EvalDatum(question_id=question_id, target=target, predictions=predictions))
+                for i in range(current_batch_size-1):
+                    self.data.add(EvalDatum(question_id=question_id[i], target=target[i], predictions=predictions[i]))
 
             self.data.aggregate()
 
@@ -209,16 +224,17 @@ class EvaluationData:
 if __name__ == "__main__":
     # Load resources
     vec_test = VQADataset(
-        load_path="../data/vqa_vecs_test.pickle",
-        image_features_path="../data/VQA_image_features.h5",
-        image_features2id_path="../data/VQA_img_features2id.json",
+        load_path="../data/small_data/vqa_vecs_test.pickle",
+        image_features_path="../data/small_data/VQA_image_features.h5",
+        image_features2id_path="../data/small_data/VQA_img_features2id.json",
         inflate_vecs=False
     )
     # map_location enables to load a CUDA trained model, wtf
-    model = torch.load("../models/BoW_256_drop0.8", map_location=lambda storage, location: storage)
+    model = torch.load("../models/small_data/debug1")
+    #model = torch.load("../models/BoW_256_drop0.8", map_location={'cuda:0': 'cpu'})
     questions, _, _, _ = combine_data_sets("train", "valid", "test", unique_answers=True)
 
-    evaluator = VQAEvaluator(vec_test, model, questions)
+    evaluator = VQAEvaluator(vec_test, model, batch_size=100, questions=questions)
     evaluator.eval()
 
     result = evaluator.results(strongest_n=10, weakest_n=10)

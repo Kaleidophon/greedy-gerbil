@@ -125,7 +125,7 @@ def train(model: nn.Module, dataset_train: VQADataset, dataset_valid:VQADataset,
             #     print(i_batch, loss)
 
             # print statistics
-        loss_valid = get_loss(model, dataset_valid, 1000, True).cpu().data.numpy()
+        loss_valid = get_loss(model, dataset_valid, 1000, cuda).cpu().data.numpy()
         print('[%d] loss_valid: %.3f' % (epoch, loss_valid))
         if loss_valid > last_loss:
             epoch_unincreased += 1
@@ -136,12 +136,14 @@ def train(model: nn.Module, dataset_train: VQADataset, dataset_valid:VQADataset,
         if epoch_unincreased >= 3:
             break
 
+        break
+
 
 if __name__ == "__main__":
     #small_data or big_data
     data_type = "small_data"
     #where to save/load model
-    model_name = "../models/" + data_type + "/BoW_512_drop0.8"
+    model_name = "../models/" + data_type + "/debug1"
 
     vec_train = VQADataset(
         load_path="../data/" + data_type + "/vqa_vecs_train.pickle",
@@ -159,7 +161,7 @@ if __name__ == "__main__":
     # model = torch.load(model_name)
     # test_eval(model, vec_valid, 1000, cuda=True)
     model = BoWModel(vec_train.question_dim, 512, 2048, vec_train.answer_dim, dropout_prob=0.9)
-    train(model, vec_train, vec_valid, batch_size=1000, cuda=True)
+    train(model, vec_train, vec_valid, batch_size=1000, cuda=False)
     torch.save(model, model_name)
-    test_eval(model, vec_valid, 1000, cuda=True)
+    test_eval(model, vec_valid, 1000, cuda=False)
 
