@@ -143,7 +143,7 @@ if __name__ == "__main__":
     #small_data or big_data
     data_type = "small_data"
     #where to save/load model
-    model_name = "../models/" + data_type + "/BoW_512_drop0.8"
+    model_name = "../models/" + data_type + "/BoW_256_drop0.7"
 
     vec_train = VQADataset(
         load_path="../data/" + data_type + "/vqa_vecs_train.pickle",
@@ -162,7 +162,7 @@ if __name__ == "__main__":
 
     # model = torch.load(model_name)
     # test_eval(model, vec_valid, 1000, cuda=True)
-    model = BoWModel(vec_train.question_dim, 512, 2048, vec_train.answer_dim, dropout_prob=0.9)
+    model = BoWModel(vec_train.question_dim, 256, 2048, vec_train.answer_dim, dropout_prob=0.7)
     train(model, vec_train, vec_valid, batch_size=1000, cuda=True)
     torch.save(model, model_name)
     test_eval(model, vec_valid, 1000, cuda=True)
