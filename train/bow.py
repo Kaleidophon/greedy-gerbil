@@ -137,8 +137,6 @@ def train(model: nn.Module, dataset_train: VQADataset, dataset_valid:VQADataset,
             break
 
 
-
-
 if __name__ == "__main__":
     #small_data or big_data
     data_type = "small_data"
@@ -157,8 +155,6 @@ if __name__ == "__main__":
         image_features2id_path="../data/" + data_type + "/VQA_img_features2id.json",
         inflate_vecs=False
     )
-
-
 
     # model = torch.load(model_name)
     # test_eval(model, vec_valid, 1000, cuda=True)
