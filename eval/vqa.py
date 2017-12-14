@@ -4,6 +4,7 @@ Helper classes for evaluating experiments.
 """
 
 # STD
+import os
 from collections import namedtuple, defaultdict
 
 # EXT
@@ -32,12 +33,12 @@ class VQAEvaluator:
         self.verbosity = verbosity
         self.question = questions
 
-    def eval(self):
+    def eval(self, cuda=False):
         if not self.evaluated:
             size = len(self.data_set)
 
             if self.verbosity > 0: print("Evaluating model...", flush=True, end="")
-            dataloader = DataLoader(self.data_set, batch_size=1, shuffle=False, num_workers=4)
+            dataloader = DataLoader(self.data_set, batch_size=1000, shuffle=False, num_workers=4)
             for n, batch in enumerate(dataloader):
                 if self.verbosity > 0:
                     print(
@@ -47,11 +48,18 @@ class VQAEvaluator:
 
                 question_features, target, image_features, _, question_id, answer_id = batch
                 question_id = question_id.numpy()[0]
-                question_features = Variable(question_features.long())
+                question_features = Variable(question_features.long(), volatile=True)
                 target = int(target[0].numpy()[0])
-                image_features = Variable(image_features)
+                image_features = Variable(image_features, volatile=True)
 
-                predictions = self.model(question_features, image_features).data.numpy()[0]
+                if cuda:
+                    question_features = question_features.cuda()
+                    image_features = image_features.cuda()
+
+                predictions = self.model(question_features, image_features)
+                if cuda:
+                    predictions = predictions.cpu()
+                predictions = predictions.data.numpy()[0]
 
                 self.data.add(EvalDatum(question_id=question_id, target=target, predictions=predictions))
 
@@ -208,18 +216,21 @@ class EvaluationData:
 
 if __name__ == "__main__":
     # Load resources
-    vec_test = VQADataset(
-        load_path="../data/vqa_vecs_test.pickle",
-        image_features_path="../data/VQA_image_features.h5",
-        image_features2id_path="../data/VQA_img_features2id.json",
+    data_type = "small_data"
+    # where to save/load model
+    model_name = "../models/" + data_type + "/BoW_256_drop0.8"
+    vec_valid = VQADataset(
+        load_path="../data/" + data_type + "/vqa_vecs_valid.pickle",
+        image_features_path="../data/" + data_type + "/VQA_image_features.h5",
+        image_features2id_path="../data/" + data_type + "/VQA_img_features2id.json",
         inflate_vecs=False
     )
     # map_location enables to load a CUDA trained model, wtf
-    model = torch.load("../models/BoW_256_drop0.8", map_location=lambda storage, location: storage)
-    questions, _, _, _ = combine_data_sets("train", "valid", "test", unique_answers=True)
+    model = torch.load(model_name)
+    questions, _, _, _ = combine_data_sets("train", "valid", "test", data_type=data_type, unique_answers=True)
 
-    evaluator = VQAEvaluator(vec_test, model, questions)
-    evaluator.eval()
+    evaluator = VQAEvaluator(vec_valid, model, questions)
+    evaluator.eval(cuda=True)
 
     result = evaluator.results(strongest_n=10, weakest_n=10)
     print(result)  # Bla

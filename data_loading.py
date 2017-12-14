@@ -16,7 +16,7 @@ from torch.utils.data import Dataset
 
 # CONST
 DATA_SET_TYPES = ("test", "train", "valid")
-DATA_SET_PATH = os.path.dirname(__file__) + "/data/vqa_{}_{}.gzip"
+DATA_SET_PATH = os.path.dirname(__file__) + "/data/{}/vqa_{}_{}.gzip"
 QAVectors = namedtuple(
     "QAVector",
     [
@@ -217,7 +217,7 @@ def read_image_features_file(features_path, features2id_path):
     return {int(image_id): img_features[image_index] for image_id, image_index in visual_feat_mapping.items()}
 
 
-def combine_data_sets(*data_sets, unique_answers=False):
+def combine_data_sets(*data_sets, data_type='small_data', unique_answers=False):
     """
     Combine the questions and answers in multiple different data sets / data set splits.
 
@@ -233,7 +233,7 @@ def combine_data_sets(*data_sets, unique_answers=False):
     questions, answers, qid2set, aid2set = dict(), dict(), dict(), dict()
 
     for set_name in data_sets:
-        current_questions, current_answers = get_data_set(set_name, unique_answers)
+        current_questions, current_answers = get_data_set(set_name, data_type, unique_answers)
 
         questions.update(current_questions)
         answers.update(current_answers)
@@ -253,7 +253,7 @@ def read_data_file(path):
         return json.loads(file.read().decode('utf-8'))
 
 
-def get_data_set(set_name, unique_answers=False):
+def get_data_set(set_name, data_type, unique_answers=False):
     """
     Retrieve all the question and their respective answers from a data set (possible options are
     "test", "valid", and "train").
@@ -265,8 +265,8 @@ def get_data_set(set_name, unique_answers=False):
     questions, answers = dict(), dict()
 
     assert set_name in DATA_SET_TYPES, "Expected set name to be in {}, '{}' found.".format(DATA_SET_TYPES, set_name)
-    raw_questions = read_data_file(path=DATA_SET_PATH.format("questions", set_name))["questions"]
-    annotations = read_data_file(path=DATA_SET_PATH.format("annotations", set_name))["annotations"]
+    raw_questions = read_data_file(path=DATA_SET_PATH.format(data_type, "questions", set_name))["questions"]
+    annotations = read_data_file(path=DATA_SET_PATH.format(data_type, "annotations", set_name))["annotations"]
 
     # Process questions
     for raw_question in raw_questions:
