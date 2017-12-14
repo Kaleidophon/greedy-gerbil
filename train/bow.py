@@ -88,10 +88,8 @@ def train(model: nn.Module, dataset_train: VQADataset, dataset_valid:VQADataset,
         outputs = model(valid_questions, valid_image)
         loss_valid = criterion(outputs, valid_answers)
 
-        print('[%d] loss_valid: %.3f' % (epoch + 1, loss_valid[0]))
+        #print('[%d] loss_valid: %.3f' % (epoch + 1, loss_valid[0]))
         test_eval(model, dataset_valid, cuda)
-
-
 
 
 if __name__ == "__main__":
@@ -112,6 +110,6 @@ if __name__ == "__main__":
     #model = torch.load("../models/debug")
     #test_eval(model, vec_train, True)
     model = BoWModel(vec_train.question_dim, 500, 2048, vec_train.answer_dim)
-    train(model, vec_train, vec_valid, 100, cuda=False)
+    train(model, vec_train, vec_valid, 1, cuda=False)
     torch.save(model, "../models/debug1")
 
