@@ -38,7 +38,7 @@ class VQAEvaluator:
             size = len(self.data_set)
 
             if self.verbosity > 0: print("Evaluating model...", flush=True, end="")
-            dataloader = DataLoader(self.data_set, batch_size=1000, shuffle=False, num_workers=4)
+            dataloader = DataLoader(self.data_set, batch_size=1, shuffle=False, num_workers=4)
             for n, batch in enumerate(dataloader):
                 if self.verbosity > 0:
                     print(
@@ -227,6 +227,8 @@ if __name__ == "__main__":
     )
     # map_location enables to load a CUDA trained model, wtf
     model = torch.load(model_name)
+    #Disable dropout for BoW model
+    model.dropout_enabled = False
     questions, _, _, _ = combine_data_sets("train", "valid", "test", data_type=data_type, unique_answers=True)
 
     evaluator = VQAEvaluator(vec_valid, model, questions)
