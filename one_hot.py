@@ -190,14 +190,14 @@ if __name__ == "__main__":
     save_vectors(data_vecs, "./data/", qid2set, convert=False)
 
     # Example on how to load the pickled data and use it with the torch DataLoader class
-    vec_collection = VQADataset(
-        load_path="./data/vqa_vecs_train.pickle",
-        inflate_vecs=False,
-        image_features_path="./data/VQA_image_features.h5",
-        image_features2id_path="./data/VQA_img_features2id.json"
-    )
-    for vec_pair in vec_collection:
-        print(len(vec_pair.question_vec), vec_pair.question_vec)
+    # vec_collection = VQADataset(
+    #     load_path="./data/vqa_vecs_train.pickle",
+    #     inflate_vecs=False,
+    #     image_features_path="./data/VQA_image_features.h5",
+    #     image_features2id_path="./data/VQA_img_features2id.json"
+    # )
+    # for vec_pair in vec_collection:
+    #     print(len(vec_pair.question_vec), vec_pair.question_vec)
 
     #dataset_loader = DataLoader(vec_collection, batch_size=4, shuffle=True, num_workers=4)
     #for i_batch, sample_batched in enumerate(dataset_loader):

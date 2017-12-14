@@ -28,8 +28,7 @@ QAVectors = namedtuple(
         "answer_id"      # ...
     ]
 )
-QUESTION_VOCAB_SIZE = 7924
-ANSWER_VOCAB_SIZE = 30806
+
 IMAGE_FEATURE_SIZE = 2048
 
 
@@ -96,7 +95,7 @@ class VQADataset(Dataset):
                 self.data_vecs[i] = QAVectors(
                     question_vec=vec_pair.question_vec[1:],
                     answer_vec=vec_pair.answer_vec[1:],
-                    image_vec=vec_pair.image_vec,
+                    image_vec=[],
                     image_id=vec_pair.image_id, question_id=vec_pair.question_id, answer_id=vec_pair.answer_id
                 )
 
@@ -153,7 +152,7 @@ class VQADataset(Dataset):
                     constant_values=(self.question_dim, )
                 ),
                 answer_vec=vec_pair.answer_vec,
-                image_vec=vec_pair.image_vec,
+                image_vec=self.image_features[vec_pair.image_id],
                 image_id=vec_pair.image_id, question_id=vec_pair.question_id, answer_id=vec_pair.answer_id
             )
 
