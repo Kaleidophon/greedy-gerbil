@@ -150,8 +150,8 @@ if __name__ == "__main__":
     torch.backends.cudnn.enabled = False
 
     # model = torch.load(model_name)
-    model = RNNModel(vec_train.question_dim, IMAGE_FEATURE_SIZE, 128, vec_train.answer_dim, num_layers=1, dropout_prob=0.5, cuda_enabled=True)
-    train(model, vec_train, vec_valid, batch_size=100, cuda=True)
+    model = RNNModel(vec_train.question_dim, IMAGE_FEATURE_SIZE, 128, vec_train.answer_dim, num_layers=1, dropout_prob=0.8, cuda_enabled=True)
+    train(model, vec_train, vec_valid, batch_size=1000, cuda=True)
     torch.save(model, model_name)
 
     test(model.cuda(), vec_valid, True)
