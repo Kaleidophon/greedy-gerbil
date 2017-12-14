@@ -140,6 +140,7 @@ class VQADataset(Dataset):
         return len(self.data_vecs)
 
     def __getitem__(self, item):
+        # Does not support slices!
         if self.inflate_vecs:
             return self.data_vecs[item]
         else:

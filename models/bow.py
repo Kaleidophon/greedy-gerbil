@@ -8,6 +8,7 @@ class BoWModel(nn.Module):
 
         self.embedding = nn.Embedding(vocab_features_dim + 1, embedding_dim, padding_idx=vocab_features_dim)
         self.linearLayer = nn.Linear(image_features_dim + embedding_dim, output_dim)
+        
         if dropout_prob > 0:
             self.dropout = nn.Dropout(dropout_prob)
             self.dropout_enabled = True
