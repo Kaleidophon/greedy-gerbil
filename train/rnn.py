@@ -39,11 +39,13 @@ def get_loss(model: nn.Module, dataset: VQADataset, batch=1000, cuda=False):
     # model.dropout_enabled = False
     dropout = model.gru.dropout
     model.gru.dropout= 0
+    batch_counter = 0
 
     loss = 0
     criterion = nn.NLLLoss()
     dataload = DataLoader(dataset, batch_size=batch, shuffle=False, num_workers=4)
     for i_batch, batch in enumerate(dataload):
+        batch_counter += 1
         questions, answers, images, _, _, _ = batch
         questions, images, answers, question_lengths = prepare_batch(questions, images, answers, dataset.question_dim, True, True)
         # perform forward pass
@@ -51,10 +53,13 @@ def get_loss(model: nn.Module, dataset: VQADataset, batch=1000, cuda=False):
         loss += criterion(model_answers, answers)
     # model.dropout_enabled = dropout_before
     model.gru.dropout = dropout
-    return loss
+    return loss/batch_counter
 
-def test(model, dataset, cuda=False):
-    dataset_loader = DataLoader(dataset, batch_size=1000, shuffle=False, num_workers=4, drop_last=True)
+def test_eval(model, dataset, batch_size=1000, cuda=False):
+    if cuda:
+        model.cuda()
+
+    dataset_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=4, drop_last=True)
     correct = 0
 
     dropout = model.gru.dropout
@@ -76,21 +81,23 @@ def test(model, dataset, cuda=False):
     model.gru.dropout = dropout
 
 
-def train(model, dataset, valid_set, batch_size=100, cuda=False):
+def train(model, model_name, dataset_train, dataset_valid, batch_size=100, learning_curve=True, cuda=False):
     # prepare data
     if cuda:
         model = model.cuda()
 
-    dataset_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=4, drop_last=True)
+    dataset_loader = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, num_workers=4, drop_last=True)
     # set expectations
 
+    learning_curve_train = []
+    learning_curve_valid = []
 
     lr_embed = 0.1
     lr_other = 1e-3
     #criterion = nn.CrossEntropyLoss()
     criterion = nn.NLLLoss()
     last_loss = 2000000
-    epoch_unincreased = 0
+    epoch_undecreased = 0
     epoch = 0
     optimizer = optim.Adagrad([
         {'params': model.layer_transform.parameters()},
@@ -107,7 +114,7 @@ def train(model, dataset, valid_set, batch_size=100, cuda=False):
             # print("training in epoch", epoch, "on batch", i_batch+1)
             questions, answers, images, _, _, _ = batch
             # prepare the batch
-            questions, images, answers, question_lengths = prepare_batch(questions, images, answers, dataset.question_dim, False, cuda)
+            questions, images, answers, question_lengths = prepare_batch(questions, images, answers, dataset_train.question_dim, False, cuda)
             # zero the parameter gradients
             optimizer.zero_grad()
             # perform forward pass
@@ -119,24 +126,47 @@ def train(model, dataset, valid_set, batch_size=100, cuda=False):
             optimizer.step()
             # if i_batch % 100 == 0:
             #     print(loss[0])
-        loss_valid = get_loss(model, valid_set, 1000, True).cpu().data.numpy()
+        loss_valid = get_loss(model, dataset_valid, 1000, cuda=cuda).cpu().data.numpy()
+        if learning_curve:
+            loss_train = get_loss(model, dataset_train, 1000, cuda=cuda).cpu().data.numpy()
+            print('[%d] loss_train: %.3f' % (epoch, loss_train))
+            learning_curve_train.append(loss_train[0])
+            learning_curve_valid.append(loss_valid[0])
+
         print('[%d] loss_valid: %.3f' % (epoch, loss_valid))
         if loss_valid > last_loss:
-            epoch_unincreased += 1
+            epoch_undecreased += 1
         else:
-            epoch_unincreased = 0
+            epoch_undecreased = 0
+            tup = (learning_curve_train, learning_curve_valid) if learning_curve else None
+            save_model(model, model_name, tup, cuda=cuda)
+            last_loss = loss_valid
 
-        last_loss = loss_valid
-        if epoch_unincreased >= 3:
+        if epoch_undecreased >= 5:
             break
 
 
     print('Training complete.')
 
-def save_model(model, model_name, cuda=False):
+def save_model(model, model_name, learning_curves=None, cuda=False):
     if cuda:
         model.cpu()
     torch.save(model, model_name)
+    if learning_curves is not None:
+        with open(model_name + ".pkl", 'wb') as f:
+            pickle.dump(learning_curves, f)
+    if cuda:
+        model.cuda()
+
+
+def load_model(model_name, learning_curves=True):
+    model = torch.load(model_name)
+    l = None
+    if learning_curves:
+        with open(model_name + ".pkl", 'rb') as f:
+            l = pickle.load(f)
+
+    return model, l
 
 if __name__ == "__main__":
     #small_data or big_data
@@ -160,8 +190,10 @@ if __name__ == "__main__":
     #This line is mysterious but prevents mysterious errors from cudnn (and took 2 hours of my sleep)
     torch.backends.cudnn.enabled = False
 
-    # model = torch.load(model_name)
-    model = RNNModel(vec_train.question_dim, IMAGE_FEATURE_SIZE, 256, vec_train.answer_dim, num_layers=1, dropout_prob=0.6, cuda_enabled=cuda)
-    train(model, vec_train, vec_valid, batch_size=1000, cuda=cuda)
-    save_model(model, model_name, cuda=cuda)
-    test(model.cuda(), vec_valid, cuda=cuda)
+    model = torch.load(model_name)
+    model = RNNModel(vec_train.question_dim, IMAGE_FEATURE_SIZE, 128, vec_train.answer_dim, num_layers=2, dropout_prob=0.8, cuda_enabled=cuda)
+    train(model, model_name, vec_train, vec_valid, batch_size=500, cuda=cuda)
+    test_eval(model, vec_valid, 1000, cuda=cuda)
+
+    model, ll = load_model(model_name)
+    print(ll)

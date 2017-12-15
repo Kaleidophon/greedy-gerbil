@@ -8,6 +8,7 @@ import torch.optim as optim
 from torch import nn
 from torch.autograd import Variable
 import torch
+import pickle
 import numpy as np
 
 
@@ -22,11 +23,13 @@ def get_loss(model: nn.Module, dataset: VQADataset, batch=1000, cuda=False):
 
     dropout_before = model.dropout_enabled
     model.dropout_enabled = False
+    batch_counter = 0
 
     loss = 0
     criterion = nn.NLLLoss()
     dataload = DataLoader(dataset, batch_size=batch, shuffle=False, num_workers=4)
     for i_batch, sample_batched in enumerate(dataload):
+        batch_counter+= 1
         valid_questions, valid_answers, valid_image, _, _, _ = sample_batched
         valid_questions = Variable(valid_questions.long(), volatile=True)
         valid_answers = Variable(valid_answers[0], volatile=True)
@@ -40,7 +43,7 @@ def get_loss(model: nn.Module, dataset: VQADataset, batch=1000, cuda=False):
         outputs = model(valid_questions, valid_image)
         loss += criterion(outputs, valid_answers)
     model.dropout_enabled = dropout_before
-    return loss
+    return loss/batch_counter
 
 def test_eval(model: nn.Module, dataset: VQADataset, batch=1000, cuda=False):
     if cuda:
@@ -73,21 +76,26 @@ def test_eval(model: nn.Module, dataset: VQADataset, batch=1000, cuda=False):
     print(correct / len(dataset) * 100)
 
 
-def train(model: nn.Module, dataset_train: VQADataset, dataset_valid:VQADataset, batch_size=100, learn_rate=0.8, cuda=False):
+def train(model: nn.Module, model_name, dataset_train: VQADataset, dataset_valid:VQADataset, batch_size=100, learning_curve=True, cuda=False):
     if cuda:
         model.cuda()
 
     dataload_train = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, num_workers=4, drop_last=True)
 
-    criterion = nn.NLLLoss()
     last_loss = 2000000
-    epoch_unincreased = 0
+    epoch_undecreased = 0
     epoch = 0
+
+    learning_curve_train = []
+    learning_curve_valid = []
+
+    criterion = nn.NLLLoss()
     #criterion = nn.CrossEntropyLoss()
+
     optimizer = optim.Adagrad([
         {'params': model.linearLayer.parameters()},
-        {'params': model.embedding.parameters(), 'lr': 0.05}
-    ], lr=1e-4 * 5)
+        {'params': model.embedding.parameters(), 'lr': 0.1}
+    ], lr=1e-3)
 
     # optimizer = optim.Adam([
     #     {'params': model.linearLayer.parameters()},
@@ -121,25 +129,51 @@ def train(model: nn.Module, dataset_train: VQADataset, dataset_valid:VQADataset,
             loss.backward()
             optimizer.step()
 
-            # if i_batch % 100 == 99:
-            #     print(i_batch, loss)
+        loss_valid = get_loss(model, dataset_valid, 1000, cuda=cuda).cpu().data.numpy()
+        if learning_curve:
+            loss_train = get_loss(model, dataset_train, 1000, cuda=cuda).cpu().data.numpy()
+            print('[%d] loss_train: %.3f' % (epoch, loss_train))
+            learning_curve_train.append(loss_train[0])
+            learning_curve_valid.append(loss_valid[0])
 
-            # print statistics
-        loss_valid = get_loss(model, dataset_valid, 1000, True).cpu().data.numpy()
         print('[%d] loss_valid: %.3f' % (epoch, loss_valid))
         if loss_valid > last_loss:
-            epoch_unincreased += 1
+            epoch_undecreased += 1
         else:
-            epoch_unincreased = 0
+            epoch_undecreased = 0
+            tup = (learning_curve_train, learning_curve_valid) if learning_curve else None
+            save_model(model, model_name, tup, cuda=cuda)
+            last_loss = loss_valid
 
-        last_loss = loss_valid
-        if epoch_unincreased >= 3:
+        if epoch_undecreased >= 5:
             break
 
-def save_model(model, model_name, cuda=False):
+    if learning_curve:
+        t = (learning_curve_train, learning_curve_valid)
+        return t
+
+
+def save_model(model, model_name, learning_curves=None, cuda=False):
     if cuda:
         model.cpu()
     torch.save(model, model_name)
+    if learning_curves is not None:
+        with open(model_name + ".pkl", 'wb') as f:
+            pickle.dump(learning_curves, f)
+
+    if cuda:
+        model.cuda()
+
+
+def load_model(model_name, learning_curves=True):
+    model = torch.load(model_name)
+    l = None
+    if learning_curves:
+        with open(model_name + ".pkl", 'rb') as f:
+            l = pickle.load(f)
+
+    return model, l
+
 
 if __name__ == "__main__":
     #small_data or big_data
@@ -161,9 +195,9 @@ if __name__ == "__main__":
         inflate_vecs=False
     )
 
-    # model = torch.load(model_name)
-    model = BoWModel(vec_train.question_dim, 512, 2048, vec_train.answer_dim, dropout_prob=0.8)
-    train(model, vec_train, vec_valid, batch_size=1000, cuda=cuda)
-    save_model(model, model_name, cuda=cuda)
+    model = BoWModel(vec_train.question_dim, 256, 2048, vec_train.answer_dim, dropout_prob=0.8)
+    train(model, model_name, vec_train, vec_valid, batch_size=500, cuda=cuda)
     test_eval(model, vec_valid, 1000, cuda=cuda)
+    # model, ll = load_model(model_name)
+    # print(ll)
 
