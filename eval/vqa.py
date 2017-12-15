@@ -11,6 +11,8 @@ from collections import namedtuple, defaultdict
 import torch
 from torch.autograd import Variable
 from torch.utils.data.dataloader import DataLoader
+import torch.nn as nn
+
 
 # PROJECT
 from data_loading import VQADataset
@@ -25,9 +27,19 @@ class VQAEvaluator:
     """
     Evaluation helper class for the VQA dataset.
     """
-    def __init__(self, data_set, model, questions=None, verbosity=1):
+    def __init__(self, data_set, model, batch_size=1, questions=None, verbosity=1):
         self.data_set = data_set
         self.model = model
+        self.batch_size = batch_size
+
+        # Don't use dropout during evaluation
+        # BoW
+        if hasattr(self.model, "dropout"):
+            self.model.dropout = nn.Dropout(0)
+        # RNN w/ GRUs
+        elif hasattr(self.model, "gru"):
+            self.model.gru.dropout = 0
+
         self.data = EvaluationData(questions=questions)
         self.evaluated = False
         self.verbosity = verbosity
@@ -38,12 +50,14 @@ class VQAEvaluator:
             size = len(self.data_set)
 
             if self.verbosity > 0: print("Evaluating model...", flush=True, end="")
-            dataloader = DataLoader(self.data_set, batch_size=1, shuffle=False, num_workers=4)
+            dataloader = DataLoader(self.data_set, batch_size=self.batch_size, shuffle=False, num_workers=4)
             for n, batch in enumerate(dataloader):
+                current_batch_size = len(batch[0])
                 if self.verbosity > 0:
                     print(
-                        "\rCollecting predictions {}/{} ({:.2f} % complete)".format(n+1, size, (n+1) / size * 50),
-                        flush=True, end=""
+                        "\rCollecting predictions {}/{} ({:.2f} % complete)".format(
+                            (n+1)*self.batch_size, size, (n+1)*current_batch_size / size * 50
+                        ), flush=True, end=""
                     )
 
                 question_features, target, image_features, _, question_id, answer_id = batch
@@ -61,7 +75,8 @@ class VQAEvaluator:
                     predictions = predictions.cpu()
                 predictions = predictions.data.numpy()[0]
 
-                self.data.add(EvalDatum(question_id=question_id, target=target, predictions=predictions))
+                for i in range(current_batch_size-1):
+                    self.data.add(EvalDatum(question_id=question_id[i], target=target[i], predictions=predictions[i]))
 
             self.data.aggregate()
 

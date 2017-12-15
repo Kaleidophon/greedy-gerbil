@@ -125,7 +125,7 @@ def train(model: nn.Module, dataset_train: VQADataset, dataset_valid:VQADataset,
             #     print(i_batch, loss)
 
             # print statistics
-        loss_valid = get_loss(model, dataset_valid, 1000, True).cpu().data.numpy()
+        loss_valid = get_loss(model, dataset_valid, 1000, cuda).cpu().data.numpy()
         print('[%d] loss_valid: %.3f' % (epoch, loss_valid))
         if loss_valid > last_loss:
             epoch_unincreased += 1
@@ -136,10 +136,15 @@ def train(model: nn.Module, dataset_train: VQADataset, dataset_valid:VQADataset,
         if epoch_unincreased >= 3:
             break
 
+<<<<<<< HEAD
 def save_model(model, model_name, cuda=False):
     if cuda:
         model.cpu()
     torch.save(model, model_name)
+=======
+        break
+
+>>>>>>> eval
 
 if __name__ == "__main__":
     #small_data or big_data
