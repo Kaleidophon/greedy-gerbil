@@ -148,9 +148,6 @@ def train(model: nn.Module, model_name, dataset_train: VQADataset, dataset_valid
         if epoch_undecreased >= 5:
             break
 
-    if learning_curve:
-        t = (learning_curve_train, learning_curve_valid)
-        return t
 
 
 def save_model(model, model_name, learning_curves=None, cuda=False):
