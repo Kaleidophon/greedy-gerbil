@@ -48,7 +48,8 @@ class VQAEvaluator:
     def eval(self, cuda=False):
         if not self.evaluated:
             size = len(self.data_set)
-
+            if cuda:
+                self.model.cuda()
             if self.verbosity > 0: print("Evaluating model...", flush=True, end="")
             dataloader = DataLoader(self.data_set, batch_size=self.batch_size, shuffle=False, num_workers=4)
             for n, batch in enumerate(dataloader):
@@ -61,9 +62,9 @@ class VQAEvaluator:
                     )
 
                 question_features, target, image_features, _, question_id, answer_id = batch
-                question_id = question_id.numpy()[0]
+                question_id = question_id.numpy()#[0]
                 question_features = Variable(question_features.long(), volatile=True)
-                target = int(target[0].numpy()[0])
+                target = target[0].numpy()#[0])
                 image_features = Variable(image_features, volatile=True)
 
                 if cuda:
@@ -73,13 +74,14 @@ class VQAEvaluator:
                 predictions = self.model(question_features, image_features)
                 if cuda:
                     predictions = predictions.cpu()
-                predictions = predictions.data.numpy()[0]
+                predictions = predictions.data.numpy()#[0]
 
-                for i in range(current_batch_size-1):
+                for i in range(current_batch_size):
                     self.data.add(EvalDatum(question_id=question_id[i], target=target[i], predictions=predictions[i]))
 
             self.data.aggregate()
-
+            if cuda:
+                self.model.cpu()
             self.evaluated = True
             if self.verbosity > 0: print("\rEvaluating model complete!")
 
@@ -233,7 +235,7 @@ if __name__ == "__main__":
     # Load resources
     data_type = "small_data"
     # where to save/load model
-    model_name = "../models/" + data_type + "/BoW_256_drop0.8"
+    model_name = "../models/" + data_type + "/BoW_256_drop0.8_batch500"
     vec_valid = VQADataset(
         load_path="../data/" + data_type + "/vqa_vecs_valid.pickle",
         image_features_path="../data/" + data_type + "/VQA_image_features.h5",
@@ -246,7 +248,7 @@ if __name__ == "__main__":
     model.dropout_enabled = False
     questions, _, _, _ = combine_data_sets("train", "valid", "test", data_type=data_type, unique_answers=True)
 
-    evaluator = VQAEvaluator(vec_valid, model, questions)
+    evaluator = VQAEvaluator(vec_valid, model, batch_size=1000, questions=questions)
     evaluator.eval(cuda=True)
 
     result = evaluator.results(strongest_n=10, weakest_n=10)

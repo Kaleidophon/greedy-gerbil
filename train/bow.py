@@ -176,7 +176,7 @@ if __name__ == "__main__":
     #small_data or big_data
     data_type = "small_data"
     #where to save/load model
-    model_name = "../models/" + data_type + "/BoW_256_drop0.6"
+    model_name = "../models/" + data_type + "/BoW_256_drop0.8_batch500"
     cuda = True
 
     vec_train = VQADataset(
@@ -192,9 +192,9 @@ if __name__ == "__main__":
         inflate_vecs=False
     )
 
-    model = BoWModel(vec_train.question_dim, 256, 2048, vec_train.answer_dim, dropout_prob=0.8)
-    train(model, model_name, vec_train, vec_valid, batch_size=500, cuda=cuda)
+    # model = BoWModel(vec_train.question_dim, 256, 2048, vec_train.answer_dim, dropout_prob=0.8)
+    # train(model, model_name, vec_train, vec_valid, batch_size=500, cuda=cuda)
+    model, ll = load_model(model_name)
     test_eval(model, vec_valid, 1000, cuda=cuda)
-    # model, ll = load_model(model_name)
     # print(ll)
 
