@@ -104,7 +104,7 @@ def train(model, dataset, valid_set, batch_size=100, cuda=False):
         epoch += 1
         print("Epoch", epoch)
         for i_batch, batch in enumerate(dataset_loader):
-            #print("training in epoch", epoch+1, "on batch", i_batch+1)
+            # print("training in epoch", epoch, "on batch", i_batch+1)
             questions, answers, images, _, _, _ = batch
             # prepare the batch
             questions, images, answers, question_lengths = prepare_batch(questions, images, answers, dataset.question_dim, False, cuda)
@@ -133,11 +133,17 @@ def train(model, dataset, valid_set, batch_size=100, cuda=False):
 
     print('Training complete.')
 
+def save_model(model, model_name, cuda=False):
+    if cuda:
+        model.cpu()
+    torch.save(model, model_name)
+
 if __name__ == "__main__":
     #small_data or big_data
     data_type = "small_data"
     # where to save/load model
     model_name = "../models/" + data_type + "/RNN_Batch_Debug"
+    cuda = True
 
     vec_train = VQADataset(
         load_path="../data/" + data_type + "/vqa_vecs_train.pickle",
@@ -155,8 +161,7 @@ if __name__ == "__main__":
     torch.backends.cudnn.enabled = False
 
     # model = torch.load(model_name)
-    model = RNNModel(vec_train.question_dim, IMAGE_FEATURE_SIZE, 128, vec_train.answer_dim, num_layers=1, dropout_prob=0.8, cuda_enabled=True)
-    train(model, vec_train, vec_valid, batch_size=1000, cuda=True)
-    torch.save(model, model_name)
-
-    test(model.cuda(), vec_valid, True)
+    model = RNNModel(vec_train.question_dim, IMAGE_FEATURE_SIZE, 256, vec_train.answer_dim, num_layers=1, dropout_prob=0.6, cuda_enabled=cuda)
+    train(model, vec_train, vec_valid, batch_size=1000, cuda=cuda)
+    save_model(model, model_name, cuda=cuda)
+    test(model.cuda(), vec_valid, cuda=cuda)

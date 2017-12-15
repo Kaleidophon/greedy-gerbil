@@ -18,7 +18,7 @@ def adjust_learning_rate(optimizer, epoch):
 
 def get_loss(model: nn.Module, dataset: VQADataset, batch=1000, cuda=False):
     if cuda:
-        model = model.cuda()
+        model.cuda()
 
     dropout_before = model.dropout_enabled
     model.dropout_enabled = False
@@ -44,7 +44,7 @@ def get_loss(model: nn.Module, dataset: VQADataset, batch=1000, cuda=False):
 
 def test_eval(model: nn.Module, dataset: VQADataset, batch=1000, cuda=False):
     if cuda:
-        model = model.cuda()
+        model.cuda()
 
     dropout_before = model.dropout_enabled
     model.dropout_enabled = False
@@ -75,7 +75,7 @@ def test_eval(model: nn.Module, dataset: VQADataset, batch=1000, cuda=False):
 
 def train(model: nn.Module, dataset_train: VQADataset, dataset_valid:VQADataset, batch_size=100, learn_rate=0.8, cuda=False):
     if cuda:
-        model = model.cuda()
+        model.cuda()
 
     dataload_train = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, num_workers=4, drop_last=True)
 
@@ -86,8 +86,8 @@ def train(model: nn.Module, dataset_train: VQADataset, dataset_valid:VQADataset,
     #criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adagrad([
         {'params': model.linearLayer.parameters()},
-        {'params': model.embedding.parameters(), 'lr': 0.1}
-    ], lr=1e-3 * 1)
+        {'params': model.embedding.parameters(), 'lr': 0.05}
+    ], lr=1e-4 * 5)
 
     # optimizer = optim.Adam([
     #     {'params': model.linearLayer.parameters()},
@@ -136,12 +136,17 @@ def train(model: nn.Module, dataset_train: VQADataset, dataset_valid:VQADataset,
         if epoch_unincreased >= 3:
             break
 
+def save_model(model, model_name, cuda=False):
+    if cuda:
+        model.cpu()
+    torch.save(model, model_name)
 
 if __name__ == "__main__":
     #small_data or big_data
     data_type = "small_data"
     #where to save/load model
-    model_name = "../models/" + data_type + "/BoW_256_drop0.8"
+    model_name = "../models/" + data_type + "/BoW_256_drop0.6"
+    cuda = True
 
     vec_train = VQADataset(
         load_path="../data/" + data_type + "/vqa_vecs_train.pickle",
@@ -156,10 +161,9 @@ if __name__ == "__main__":
         inflate_vecs=False
     )
 
-    model = torch.load(model_name)
-    # test_eval(model, vec_valid, 1000, cuda=True)
-    # model = BoWModel(vec_train.question_dim, 256, 2048, vec_train.answer_dim, dropout_prob=0.7)
-    # train(model, vec_train, vec_valid, batch_size=1000, cuda=True)
-    # torch.save(model, model_name)
-    test_eval(model, vec_valid, 1000, cuda=True)
+    # model = torch.load(model_name)
+    model = BoWModel(vec_train.question_dim, 512, 2048, vec_train.answer_dim, dropout_prob=0.8)
+    train(model, vec_train, vec_valid, batch_size=1000, cuda=cuda)
+    save_model(model, model_name, cuda=cuda)
+    test_eval(model, vec_valid, 1000, cuda=cuda)
 
