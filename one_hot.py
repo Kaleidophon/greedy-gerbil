@@ -36,11 +36,13 @@ class HotLookup:
     """
     Class to look up hot one vectors given a vocabulary.
     """
-    def __init__(self, vocabulary, entry2index, key_func=lambda key: key):
+    def __init__(self, vocabulary, entry2index, key_func=lambda key: key, contains_unk=False):
         self.vocabulary = vocabulary
         self.vocab_length = len(vocabulary)
         self.key_func = key_func
         self.entry2index = entry2index
+        self.contains_unk = contains_unk
+        self.n = len(self.entry2index)
 
     def __getitem__(self, item):
         key = self.key_func(item)
@@ -48,9 +50,13 @@ class HotLookup:
         # Convert to indices
         one_hots = None  # "Hot" indices
         if type(key) == list:
-            one_hots = [self.entry2index[el] for el in key]
+            one_hots = [
+                self.entry2index.get(el, self.n-1) if self.contains_unk else self.entry2index[el] for el in key
+            ]
         else:
-            one_hots = [self.entry2index[key]]
+            one_hots = [
+                self.entry2index.get(key, self.n-1) if self.contains_unk else self.entry2index[key]
+            ]
 
         one_hot = np.zeros(shape=(self.vocab_length, 1))
         for hot_index in one_hots:
@@ -82,9 +88,9 @@ def get_vocabulary(source, entry_getter, threshold=0, index_vocab=True, add_unk=
             frequencies[entry] += 1
 
     # Filter according to threshold
-    vocabulary = {key for key, value in frequencies.items() if value >= threshold}
+    vocabulary = [key for key, value in frequencies.items() if value >= threshold]
     if add_unk:
-        vocabulary.add("<unk>")
+        vocabulary.append("<unk>")
 
     # Index entries
     entry2index = {entry: index for index, entry in enumerate(vocabulary)}
@@ -126,9 +132,12 @@ def get_data_hot_vectors(questions, answers, image_features=None, args_question_
 
     # Initialise one hot vectors
     hots_questions = HotLookup(
-        question_vocabulary, key_func=lambda key: key.replace("?", "").split(" "), entry2index=qe2i
+        question_vocabulary, key_func=lambda key: key.replace("?", "").split(" "), entry2index=qe2i,
+        contains_unk=args_question_voc.get("add_unk", False)
     )
-    hots_answers = HotLookup(answer_vocabulary, entry2index=ae2i)
+    hots_answers = HotLookup(
+        answer_vocabulary, entry2index=ae2i, contains_unk=args_answer_voc.get("add_unk", False)
+    )
 
     # Retrieve question / answer vector pairs
     data_vecs = []
@@ -153,7 +162,7 @@ def get_data_hot_vectors(questions, answers, image_features=None, args_question_
     )
 
 
-def save_vectors(data_vecs, target_dir, qid2set, convert=True):
+def save_vectors(data_vecs, target_dir, qid2set, convert=True, postfix=""):
     """
     Save a list of QAVectors namedtuples into pickle files.
 
@@ -175,7 +184,7 @@ def save_vectors(data_vecs, target_dir, qid2set, convert=True):
     # Save the sets
     for set_name, contents in vector_sets.items():
         print("Saving data set {}...".format(set_name), end="", flush=True)
-        save_qa_vectors(contents, "{}vqa_vecs_{}.pickle".format(target_dir, set_name), convert=convert)
+        save_qa_vectors(contents, "{}vqa_vecs_{}{}.pickle".format(target_dir, set_name, postfix), convert=convert)
         print("\rSaving data set {} complete!".format(set_name))
 
 if __name__ == "__main__":
@@ -183,11 +192,15 @@ if __name__ == "__main__":
     questions, answers, qid2set, aid2set = combine_data_sets("train", "valid", "test", unique_answers=True)
 
     # 2. Create one-hot vectors and the vocabulary
-    data_vecs, qa_vocab = get_data_hot_vectors(questions, answers, convert=True)
+    args_question_voc = {"threshold": 2, "index_vocab": True, "add_unk": True}
+    args_answer_voc = {"threshold": 2, "index_vocab": True, "add_unk": True}
+    data_vecs, qa_vocab = get_data_hot_vectors(
+        questions, answers, convert=True, args_question_voc=args_question_voc, args_answer_voc=args_answer_voc
+    )
 
     # 3. Save the vocabulary and the one-hot vectors using pickle
-    save_qa_vocab(qa_vocab, "./data/qa_vocab.pickle")
-    save_vectors(data_vecs, "./data/", qid2set, convert=False)
+    save_qa_vocab(qa_vocab, "./data/qa_vocab_thresh3.pickle")
+    save_vectors(data_vecs, "./data/", qid2set, convert=False, postfix="_thresh3")
 
     # Example on how to load the pickled data and use it with the torch DataLoader class
     # vec_collection = VQADataset(
