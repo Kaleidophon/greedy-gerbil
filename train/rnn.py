@@ -138,25 +138,30 @@ def train(model, model_name, dataset_train, dataset_valid, batch_size=100, learn
             epoch_undecreased += 1
         else:
             epoch_undecreased = 0
-            tup = (learning_curve_train, learning_curve_valid) if learning_curve else None
-            save_model(model, model_name, tup, cuda=cuda)
+
+            save_model(model, model_name, cuda=cuda)
             last_loss = loss_valid
 
         if epoch_undecreased >= 5:
+            if learning_curve:
+                tup = (learning_curve_train, learning_curve_valid)
+                save_learning_curves(model_name, tup)
             break
 
 
     print('Training complete.')
 
-def save_model(model, model_name, learning_curves=None, cuda=False):
+def save_model(model, model_name, cuda=False):
     if cuda:
         model.cpu()
     torch.save(model, model_name)
+    if cuda:
+        model.cuda()
+
+def save_learning_curves(model_name, learning_curves):
     if learning_curves is not None:
         with open(model_name + ".pkl", 'wb') as f:
             pickle.dump(learning_curves, f)
-    if cuda:
-        model.cuda()
 
 
 def load_model(model_name, learning_curves=True):
@@ -193,7 +198,7 @@ if __name__ == "__main__":
     model = torch.load(model_name)
     model = RNNModel(vec_train.question_dim, IMAGE_FEATURE_SIZE, 128, vec_train.answer_dim, num_layers=2, dropout_prob=0.8, cuda_enabled=cuda)
     train(model, model_name, vec_train, vec_valid, batch_size=500, cuda=cuda)
-    test_eval(model, vec_valid, 1000, cuda=cuda)
 
     model, ll = load_model(model_name)
+    test_eval(model, vec_valid, 1000, cuda=cuda)
     print(ll)

@@ -76,7 +76,7 @@ def test_eval(model: nn.Module, dataset: VQADataset, batch=1000, cuda=False):
     print(correct / len(dataset) * 100)
 
 
-def train(model: nn.Module, model_name, dataset_train: VQADataset, dataset_valid:VQADataset, batch_size=100, learning_curve=True, cuda=False):
+def train(model: nn.Module, model_name, dataset_train: VQADataset, dataset_valid:VQADataset, parameters, batch_size=100, learning_curve=True, cuda=False):
     if cuda:
         model.cuda()
 
@@ -85,7 +85,6 @@ def train(model: nn.Module, model_name, dataset_train: VQADataset, dataset_valid
     last_loss = 2000000
     epoch_undecreased = 0
     epoch = 0
-
     learning_curve_train = []
     learning_curve_valid = []
 
@@ -94,8 +93,8 @@ def train(model: nn.Module, model_name, dataset_train: VQADataset, dataset_valid
 
     optimizer = optim.Adagrad([
         {'params': model.linearLayer.parameters()},
-        {'params': model.embedding.parameters(), 'lr': 0.1}
-    ], lr=1e-3)
+        {'params': model.embedding.parameters(), 'lr': parameters["embed_lr"]}
+    ], lr=parameters["other_lr"])
 
     # optimizer = optim.Adam([
     #     {'params': model.linearLayer.parameters()},
@@ -137,29 +136,33 @@ def train(model: nn.Module, model_name, dataset_train: VQADataset, dataset_valid
             learning_curve_valid.append(loss_valid[0])
 
         print('[%d] loss_valid: %.3f' % (epoch, loss_valid))
-        if loss_valid > last_loss:
+        if loss_valid[0] > last_loss:
             epoch_undecreased += 1
         else:
             epoch_undecreased = 0
-            tup = (learning_curve_train, learning_curve_valid) if learning_curve else None
-            save_model(model, model_name, tup, cuda=cuda)
-            last_loss = loss_valid
+
+            save_model(model, model_name, cuda=cuda)
+            last_loss = loss_valid[0]
 
         if epoch_undecreased >= 5:
-            break
+            if learning_curve:
+                tup = (learning_curve_train, learning_curve_valid)
+                save_learning_curves(model_name, tup)
+            return last_loss
 
 
 
-def save_model(model, model_name, learning_curves=None, cuda=False):
+def save_model(model, model_name, cuda=False):
     if cuda:
         model.cpu()
     torch.save(model, model_name)
+    if cuda:
+        model.cuda()
+
+def save_learning_curves(model_name, learning_curves):
     if learning_curves is not None:
         with open(model_name + ".pkl", 'wb') as f:
             pickle.dump(learning_curves, f)
-
-    if cuda:
-        model.cuda()
 
 
 def load_model(model_name, learning_curves=True):
@@ -171,12 +174,24 @@ def load_model(model_name, learning_curves=True):
 
     return model, l
 
+def try_model(parameters, vec_train, vec_valid, cuda=False):
+    model = BoWModel(vec_train.question_dim, parameters["embed_size"], 2048, vec_train.answer_dim, dropout_prob=parameters["dropout_prob"])
+
+    param_string = "BoW_" + str(parameters["embed_size"]) + "_"\
+                   + str(parameters["dropout_prob"]) + "_" + str(parameters["embed_lr"]) + "_"\
+                   + str(parameters["other_lr"]) + "_" + str(parameters["batch_size"])
+
+    model_name = "../models/" + parameters["data_type"] + "/" + param_string
+    loss = train(model, model_name, vec_train, vec_valid, parameters, batch_size=parameters["batch_size"], cuda=cuda)
+    with open("../models/" + parameters["data_type"] + "/results.txt", "a") as myfile:
+        myfile.write(param_string + " " + str(loss) + "\n")
+
 
 if __name__ == "__main__":
     #small_data or big_data
     data_type = "small_data"
     #where to save/load model
-    model_name = "../models/" + data_type + "/BoW_256_drop0.8_batch500"
+
     cuda = True
 
     vec_train = VQADataset(
@@ -192,9 +207,39 @@ if __name__ == "__main__":
         inflate_vecs=False
     )
 
-    # model = BoWModel(vec_train.question_dim, 256, 2048, vec_train.answer_dim, dropout_prob=0.8)
-    # train(model, model_name, vec_train, vec_valid, batch_size=500, cuda=cuda)
-    model, ll = load_model(model_name)
-    test_eval(model, vec_valid, 1000, cuda=cuda)
+    configuration_list = [
+        {"embed_size": 128, "dropout_prob": 0, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
+         "batch_size": 1000},
+        {"embed_size": 128, "dropout_prob": 0, "data_type": data_type, "embed_lr": 0.5, "other_lr": 1e-2,
+         "batch_size": 1000},
+        {"embed_size": 128, "dropout_prob": 0, "data_type": data_type, "embed_lr": 0.05, "other_lr": 1e-4 * 5,
+         "batch_size": 1000},
+        {"embed_size": 128, "dropout_prob": 0.5, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
+         "batch_size": 1000},
+        {"embed_size": 256, "dropout_prob": 0, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
+         "batch_size": 1000},
+        {"embed_size": 256, "dropout_prob": 0.5, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
+         "batch_size": 1000},
+        {"embed_size": 512, "dropout_prob": 0, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
+         "batch_size": 1000},
+        {"embed_size": 512, "dropout_prob": 0.5, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
+         "batch_size": 1000},
+        {"embed_size": 256, "dropout_prob": 0.6, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
+         "batch_size": 1000},
+        {"embed_size": 256, "dropout_prob": 0.7, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
+         "batch_size": 1000},
+        {"embed_size": 256, "dropout_prob": 0.8, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
+         "batch_size": 1000},
+        {"embed_size": 256, "dropout_prob": 0.8, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
+         "batch_size": 500},
+        {"embed_size": 256, "dropout_prob": 0.8, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
+         "batch_size": 250}
+    ]
+
+    for par in configuration_list:
+        try_model(par, vec_train, vec_valid, cuda=cuda)
+
+    # model, ll = load_model(model_name)
+    # test_eval(model, vec_valid, 1000, cuda=cuda)
     # print(ll)
 

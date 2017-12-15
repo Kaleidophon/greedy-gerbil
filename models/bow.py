@@ -15,7 +15,7 @@ class BoWModel(nn.Module):
         else:
             self.dropout_enabled = False
         #self.softmax = nn.Softmax(dim=1)
-        self.softmax = nn.LogSoftmax()
+        self.softmax = nn.LogSoftmax(dim=1)
 
     def forward(self, word_features, image_features):
         emb = self.embedding(word_features)
