@@ -248,7 +248,7 @@ if __name__ == "__main__":
 
     for par in configuration_list:
         try_model(par, vec_train, vec_valid, cuda=cuda)
-
+    # model_name = "../models/" + data_type + "/BoW/no_smoothening/BoW_256_0.8_0.1_0.001_1000"
     # model, ll = load_model(model_name)
     # test_eval(model, vec_valid, 1000, cuda=cuda)
     # print(ll)

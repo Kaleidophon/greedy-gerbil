@@ -45,7 +45,7 @@ def eval_models_in_dir(directory, data_set, batch_size, questions, eval_path, cu
     if whitelist is not None:
         model_paths = list(filter(lambda path: any([path.endswith(white) for white in whitelist]), model_paths))
     else:
-        model_paths = list(filter(lambda path: any([not path.endswith(black) for black in blacklist]), model_paths))
+        model_paths = list(filter(lambda path: all([not path.endswith(black) for black in blacklist]), model_paths))
 
     with codecs.open(eval_path, "wb", "utf-8") as eval_file:
         for model_path in model_paths:
@@ -59,6 +59,27 @@ def eval_models_in_dir(directory, data_set, batch_size, questions, eval_path, cu
                     model_path, "\n".join(["{}: {}".format(key, value) for key, value in result.items()])
                 )
             )
+
+
+def prepare_batch(questions, images, answers, padding_idx, volatile=False ,cuda=False):
+    res_question_lengths = []
+    for question in questions:
+        if padding_idx not in list(question):
+            res_question_lengths.append(len(question)-1)
+        else:
+            res_question_lengths.append(list(question).index(padding_idx)-1)
+    # prepare for computation
+    # print(max(res_question_lengths))
+    res_questions = Variable(torch.LongTensor(questions), volatile=volatile)
+    res_images = Variable(images, volatile=volatile)
+    res_answers = Variable(torch.LongTensor(answers[0]), volatile=volatile)
+    res_question_lengths = Variable(torch.LongTensor(res_question_lengths), volatile=volatile)
+    if cuda: # CUDA for David
+        res_questions = res_questions.cuda()
+        res_images = res_images.cuda()
+        res_answers = res_answers.cuda()
+        res_question_lengths = res_question_lengths.cuda()
+    return res_questions, res_images, res_answers, res_question_lengths
 
 
 class VQAEvaluator:
@@ -101,15 +122,16 @@ class VQAEvaluator:
 
                 question_features, target, image_features, _, question_id, answer_id = batch
                 question_id = question_id.numpy()#[0]
-                question_features = Variable(question_features.long(), volatile=True)
+                #question_features = Variable(question_features.long(), volatile=True)
+                #image_features = Variable(image_features, volatile=True)
+                question_features, image_features, answer, question_lengths = prepare_batch(question_features, image_features, target,
+                                                                             self.data_set.question_dim, True, True)
                 target = target[0].numpy()#[0])
-                image_features = Variable(image_features, volatile=True)
-
                 if cuda:
                     question_features = question_features.cuda()
                     image_features = image_features.cuda()
 
-                predictions = self.model(question_features, image_features)
+                predictions = self.model(question_features, image_features, question_lengths)
                 if cuda:
                     predictions = predictions.cpu()
                 predictions = predictions.data.numpy()#[0]
@@ -280,7 +302,7 @@ if __name__ == "__main__":
         inflate_vecs=False
     )
     # map_location enables to load a CUDA trained model, wtf
-
+    torch.backends.cudnn.enabled = False
     questions, _, _, _ = combine_data_sets("train", "valid", "test", data_type=data_type, unique_answers=True)
 
-    eval_models_in_dir("../models/small_data/", vec_valid, batch_size=1000, questions=questions, eval_path="./res.txt")
+    eval_models_in_dir("../models/small_data/RNN/no_smoothening",vec_valid, batch_size=1000, questions=questions, cuda=True,eval_path="./res.txt")

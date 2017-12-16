@@ -59,17 +59,19 @@ def test_eval(model, dataset, batch_size=1000, cuda=False):
     if cuda:
         model.cuda()
 
-    dataset_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=4, drop_last=True)
+    dataset_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=4, drop_last=False)
     correct = 0
 
     dropout = model.gru.dropout
     model.gru.dropout = 0
+
 
     for i_batch, batch in enumerate(dataset_loader):
         questions, answers, images, _, _, _ = batch
         questions, images, answers, question_lengths = prepare_batch(questions, images, answers, dataset.question_dim, True, True)
         # perform forward pass
         answers = answers.cpu().data.numpy()
+
         model_answers = model(questions, images, question_lengths)
         m = torch.max(model_answers.cpu(), 1)
         m = m[1].data.numpy()
@@ -205,44 +207,23 @@ if __name__ == "__main__":
     torch.backends.cudnn.enabled = False
 
     configuration_list = [
-        {"embed_size": 128, "dropout_prob": 0.0, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
+        {"embed_size": 512, "dropout_prob": 0.6, "data_type": data_type, "embed_lr": 0.05, "other_lr": 1e-4 * 5,
          "batch_size": 1000, "hidden_layers": 1},
-        {"embed_size": 128, "dropout_prob": 0.5, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
+        {"embed_size": 256, "dropout_prob": 0.5, "data_type": data_type, "embed_lr": 0.05, "other_lr": 1e-4 * 5,
          "batch_size": 1000, "hidden_layers": 1},
-        {"embed_size": 128, "dropout_prob": 0.5, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
-         "batch_size": 1000, "hidden_layers": 2},
-        {"embed_size": 128, "dropout_prob": 0.0, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
-         "batch_size": 1000, "hidden_layers": 2},
-        {"embed_size": 128, "dropout_prob": 0, "data_type": data_type, "embed_lr": 0.05, "other_lr": 1e-4 * 5,
+        {"embed_size": 256, "dropout_prob": 0.6, "data_type": data_type, "embed_lr": 0.05, "other_lr": 1e-4 * 5,
          "batch_size": 1000, "hidden_layers": 1},
-        {"embed_size": 128, "dropout_prob": 0.5, "data_type": data_type, "embed_lr": 0.05, "other_lr": 1e-4 * 5,
+        {"embed_size": 256, "dropout_prob": 0.7, "data_type": data_type, "embed_lr": 0.05, "other_lr": 1e-4 * 5,
          "batch_size": 1000, "hidden_layers": 1},
-        {"embed_size": 256, "dropout_prob": 0.0, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
+        {"embed_size": 512, "dropout_prob": 0.8, "data_type": data_type, "embed_lr": 0.05, "other_lr": 1e-4 * 5,
          "batch_size": 1000, "hidden_layers": 1},
-        {"embed_size": 256, "dropout_prob": 0.5, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
-         "batch_size": 1000, "hidden_layers": 1},
-        {"embed_size": 256, "dropout_prob": 0.7, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
-         "batch_size": 1000, "hidden_layers": 1},
-        {"embed_size": 256, "dropout_prob": 0, "data_type": data_type, "embed_lr": 0.05, "other_lr": 1e-4 * 5,
-         "batch_size": 1000, "hidden_layers": 1},
-        {"embed_size": 256, "dropout_prob": 0, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
-         "batch_size": 1000, "hidden_layers": 2},
-        {"embed_size": 256, "dropout_prob": 0.5, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
-         "batch_size": 1000, "hidden_layers": 2},
-        {"embed_size": 256, "dropout_prob": 0.7, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
-         "batch_size": 1000, "hidden_layers": 2},
-        {"embed_size": 512, "dropout_prob": 0.7, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
-         "batch_size": 1000, "hidden_layers": 1},
-        {"embed_size": 512, "dropout_prob": 0.5, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
-         "batch_size": 1000, "hidden_layers": 1},
-        {"embed_size": 512, "dropout_prob": 0.8, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
-         "batch_size": 1000, "hidden_layers": 2},
         {"embed_size": 512, "dropout_prob": 0.7, "data_type": data_type, "embed_lr": 0.05, "other_lr": 1e-4 * 5,
          "batch_size": 1000, "hidden_layers": 1},
     ]
 
     for par in configuration_list:
         try_model(par, vec_train, vec_valid, cuda=cuda)
+    # model_name = "../models/" + data_type + "/RNN/no_smoothening/RNN_256_0.5_0.1_0.001_1000_2"
     # model, ll = load_model(model_name)
     # test_eval(model, vec_valid, 1000, cuda=cuda)
     # print(ll)
