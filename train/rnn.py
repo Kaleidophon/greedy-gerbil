@@ -81,7 +81,7 @@ def test_eval(model, dataset, batch_size=1000, cuda=False):
     model.gru.dropout = dropout
 
 
-def train(model, model_name, dataset_train, dataset_valid, batch_size=100, learning_curve=True, cuda=False):
+def train(model, model_name, dataset_train, dataset_valid, parameters, batch_size=100, learning_curve=True, cuda=False):
     # prepare data
     if cuda:
         model = model.cuda()
@@ -92,8 +92,6 @@ def train(model, model_name, dataset_train, dataset_valid, batch_size=100, learn
     learning_curve_train = []
     learning_curve_valid = []
 
-    lr_embed = 0.1
-    lr_other = 1e-3
     #criterion = nn.CrossEntropyLoss()
     criterion = nn.NLLLoss()
     last_loss = 2000000
@@ -102,8 +100,8 @@ def train(model, model_name, dataset_train, dataset_valid, batch_size=100, learn
     optimizer = optim.Adagrad([
         {'params': model.layer_transform.parameters()},
         {'params': model.gru.parameters()},
-        {'params': model.embedding.parameters(), 'lr': lr_embed}
-    ], lr=lr_other)
+        {'params': model.embedding.parameters(), 'lr': parameters["embed_lr"]}
+    ], lr=parameters["other_lr"])
 
     # start training
     while True:
@@ -134,22 +132,20 @@ def train(model, model_name, dataset_train, dataset_valid, batch_size=100, learn
             learning_curve_valid.append(loss_valid[0])
 
         print('[%d] loss_valid: %.3f' % (epoch, loss_valid))
-        if loss_valid > last_loss:
+        if loss_valid[0] > last_loss:
             epoch_undecreased += 1
         else:
             epoch_undecreased = 0
 
             save_model(model, model_name, cuda=cuda)
-            last_loss = loss_valid
+            last_loss = loss_valid[0]
 
         if epoch_undecreased >= 5:
             if learning_curve:
                 tup = (learning_curve_train, learning_curve_valid)
                 save_learning_curves(model_name, tup)
-            break
+            return last_loss
 
-
-    print('Training complete.')
 
 def save_model(model, model_name, cuda=False):
     if cuda:
@@ -173,11 +169,24 @@ def load_model(model_name, learning_curves=True):
 
     return model, l
 
+
+def try_model(parameters, vec_train, vec_valid, cuda=False):
+    model = RNNModel(vec_train.question_dim, IMAGE_FEATURE_SIZE, parameters["embed_size"], vec_train.answer_dim,
+                     num_layers=parameters["hidden_layers"], dropout_prob=parameters["dropout_prob"], cuda_enabled=cuda)
+
+    param_string = "RNN_" + str(parameters["embed_size"]) + "_"\
+                   + str(parameters["dropout_prob"]) + "_" + str(parameters["embed_lr"]) + "_"\
+                   + str(parameters["other_lr"]) + "_" + str(parameters["batch_size"]) + "_" \
+                   + str(parameters["hidden_layers"])
+
+    model_name = "../models/" + parameters["data_type"] + "/RNN/" + param_string
+    loss = train(model, model_name, vec_train, vec_valid, parameters, batch_size=parameters["batch_size"], cuda=cuda)
+    with open("../models/" + parameters["data_type"] + "/RNN/results.txt", "a") as myfile:
+        myfile.write(param_string + " " + str(loss) + "\n")
+
 if __name__ == "__main__":
     #small_data or big_data
     data_type = "small_data"
-    # where to save/load model
-    model_name = "../models/" + data_type + "/RNN_Batch_Debug"
     cuda = True
 
     vec_train = VQADataset(
@@ -195,10 +204,45 @@ if __name__ == "__main__":
     #This line is mysterious but prevents mysterious errors from cudnn (and took 2 hours of my sleep)
     torch.backends.cudnn.enabled = False
 
-    model = torch.load(model_name)
-    model = RNNModel(vec_train.question_dim, IMAGE_FEATURE_SIZE, 128, vec_train.answer_dim, num_layers=2, dropout_prob=0.8, cuda_enabled=cuda)
-    train(model, model_name, vec_train, vec_valid, batch_size=500, cuda=cuda)
+    configuration_list = [
+        {"embed_size": 128, "dropout_prob": 0.0, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
+         "batch_size": 1000, "hidden_layers": 1},
+        {"embed_size": 128, "dropout_prob": 0.5, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
+         "batch_size": 1000, "hidden_layers": 1},
+        {"embed_size": 128, "dropout_prob": 0.5, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
+         "batch_size": 1000, "hidden_layers": 2},
+        {"embed_size": 128, "dropout_prob": 0.0, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
+         "batch_size": 1000, "hidden_layers": 2},
+        {"embed_size": 128, "dropout_prob": 0, "data_type": data_type, "embed_lr": 0.05, "other_lr": 1e-4 * 5,
+         "batch_size": 1000, "hidden_layers": 1},
+        {"embed_size": 128, "dropout_prob": 0.5, "data_type": data_type, "embed_lr": 0.05, "other_lr": 1e-4 * 5,
+         "batch_size": 1000, "hidden_layers": 1},
+        {"embed_size": 256, "dropout_prob": 0.0, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
+         "batch_size": 1000, "hidden_layers": 1},
+        {"embed_size": 256, "dropout_prob": 0.5, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
+         "batch_size": 1000, "hidden_layers": 1},
+        {"embed_size": 256, "dropout_prob": 0.7, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
+         "batch_size": 1000, "hidden_layers": 1},
+        {"embed_size": 256, "dropout_prob": 0, "data_type": data_type, "embed_lr": 0.05, "other_lr": 1e-4 * 5,
+         "batch_size": 1000, "hidden_layers": 1},
+        {"embed_size": 256, "dropout_prob": 0, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
+         "batch_size": 1000, "hidden_layers": 2},
+        {"embed_size": 256, "dropout_prob": 0.5, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
+         "batch_size": 1000, "hidden_layers": 2},
+        {"embed_size": 256, "dropout_prob": 0.7, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
+         "batch_size": 1000, "hidden_layers": 2},
+        {"embed_size": 512, "dropout_prob": 0.7, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
+         "batch_size": 1000, "hidden_layers": 1},
+        {"embed_size": 512, "dropout_prob": 0.5, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
+         "batch_size": 1000, "hidden_layers": 1},
+        {"embed_size": 512, "dropout_prob": 0.8, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
+         "batch_size": 1000, "hidden_layers": 2},
+        {"embed_size": 512, "dropout_prob": 0.7, "data_type": data_type, "embed_lr": 0.05, "other_lr": 1e-4 * 5,
+         "batch_size": 1000, "hidden_layers": 1},
+    ]
 
-    model, ll = load_model(model_name)
-    test_eval(model, vec_valid, 1000, cuda=cuda)
-    print(ll)
+    for par in configuration_list:
+        try_model(par, vec_train, vec_valid, cuda=cuda)
+    # model, ll = load_model(model_name)
+    # test_eval(model, vec_valid, 1000, cuda=cuda)
+    # print(ll)

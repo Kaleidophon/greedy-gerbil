@@ -181,9 +181,9 @@ def try_model(parameters, vec_train, vec_valid, cuda=False):
                    + str(parameters["dropout_prob"]) + "_" + str(parameters["embed_lr"]) + "_"\
                    + str(parameters["other_lr"]) + "_" + str(parameters["batch_size"])
 
-    model_name = "../models/" + parameters["data_type"] + "/" + param_string
+    model_name = "../models/" + parameters["data_type"] + "/BoW/" + param_string
     loss = train(model, model_name, vec_train, vec_valid, parameters, batch_size=parameters["batch_size"], cuda=cuda)
-    with open("../models/" + parameters["data_type"] + "/results.txt", "a") as myfile:
+    with open("../models/" + parameters["data_type"] + "/BoW/results.txt", "a") as myfile:
         myfile.write(param_string + " " + str(loss) + "\n")
 
 
@@ -233,6 +233,16 @@ if __name__ == "__main__":
         {"embed_size": 256, "dropout_prob": 0.8, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
          "batch_size": 500},
         {"embed_size": 256, "dropout_prob": 0.8, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
+         "batch_size": 250},
+        {"embed_size": 512, "dropout_prob": 0.6, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
+         "batch_size": 1000},
+        {"embed_size": 512, "dropout_prob": 0.7, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
+         "batch_size": 1000},
+        {"embed_size": 512, "dropout_prob": 0.8, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
+         "batch_size": 1000},
+        {"embed_size": 256, "dropout_prob": 0.7, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
+         "batch_size": 500},
+        {"embed_size": 256, "dropout_prob": 0.7, "data_type": data_type, "embed_lr": 0.1, "other_lr": 1e-3,
          "batch_size": 250}
     ]
 
