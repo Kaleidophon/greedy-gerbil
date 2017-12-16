@@ -4,8 +4,10 @@ Helper classes for evaluating experiments.
 """
 
 # STD
-import os
+import codecs
 from collections import namedtuple, defaultdict
+from os import listdir
+from os.path import isfile, join
 
 # EXT
 import torch
@@ -21,6 +23,42 @@ from one_hot import combine_data_sets
 # CONST
 EvalResult = namedtuple("EvalResult", ["question_id", "top1", "top5", "prediction_diff"])
 EvalDatum = namedtuple("EvalResult", ["question_id", "target", "predictions"])
+
+
+def eval_models_in_dir(directory, data_set, batch_size, questions, eval_path, cuda=False, strongest_n=10, weakest_n=10,
+                       whitelist=None, blacklist={".pkl", ".pickle", ".txt"}):
+    """
+    Evaluate all models in a directory.
+
+    :param directory: Model directory
+    :param data_set: Data set with evaluation data
+    :param batch_size: Batch size for evaluator
+    :param questions: Questions for more telling evaluation
+    :param whitelist: Allowed file suffixes for model files
+    :param blacklist: Disallowed file suffices for model files
+    :param strongest_n: Number of strongest predictions per model
+    :param weakest_n: Number of weakest predictions per model
+    :return:
+    """
+    model_paths = [join(directory, file) for file in listdir(directory) if isfile(join(directory, file))]
+
+    if whitelist is not None:
+        model_paths = list(filter(lambda path: any([path.endswith(white) for white in whitelist]), model_paths))
+    else:
+        model_paths = list(filter(lambda path: any([not path.endswith(black) for black in blacklist]), model_paths))
+
+    with codecs.open(eval_path, "wb", "utf-8") as eval_file:
+        for model_path in model_paths:
+            model = torch.load(model_path)
+            model.dropout_enabled = False
+            evaluator = VQAEvaluator(data_set, model, batch_size=batch_size, questions=questions)
+            evaluator.eval(cuda=cuda)
+            result = evaluator.results(strongest_n=strongest_n, weakest_n=weakest_n)
+            eval_file.write(
+                "{}:\n{}\n\n".format(
+                    model_path, "\n".join(["{}: {}".format(key, value) for key, value in result.items()])
+                )
+            )
 
 
 class VQAEvaluator:
@@ -235,7 +273,6 @@ if __name__ == "__main__":
     # Load resources
     data_type = "small_data"
     # where to save/load model
-    model_name = "../models/" + data_type + "/BoW_256_drop0.8_batch500"
     vec_valid = VQADataset(
         load_path="../data/" + data_type + "/vqa_vecs_valid.pickle",
         image_features_path="../data/" + data_type + "/VQA_image_features.h5",
@@ -243,13 +280,7 @@ if __name__ == "__main__":
         inflate_vecs=False
     )
     # map_location enables to load a CUDA trained model, wtf
-    model = torch.load(model_name)
-    #Disable dropout for BoW model
-    model.dropout_enabled = False
+
     questions, _, _, _ = combine_data_sets("train", "valid", "test", data_type=data_type, unique_answers=True)
 
-    evaluator = VQAEvaluator(vec_valid, model, batch_size=1000, questions=questions)
-    evaluator.eval(cuda=True)
-
-    result = evaluator.results(strongest_n=10, weakest_n=10)
-    print(result)  # Bla
+    eval_models_in_dir("../models/small_data/", vec_valid, batch_size=1000, questions=questions, eval_path="./res.txt")
