@@ -100,7 +100,7 @@ def get_vocabulary(source, entry_getter, threshold=0, index_vocab=True, add_unk=
     if index_vocab:
         vocabulary = [entry2index[entry] for entry in vocabulary]
 
-    return vocabulary, entry2index, index2entry
+    return vocabulary, entry2index, index2entry, frequencies
 
 
 def get_data_hot_vectors(questions, answers, image_features=None, args_question_voc=None, args_answer_voc=None,
@@ -122,11 +122,11 @@ def get_data_hot_vectors(questions, answers, image_features=None, args_question_
     args_answer_voc = args_answer_voc if args_answer_voc is not None else {"add_unk": False, "index_vocab": True}
 
     # Read data set, get vocabulary
-    question_vocabulary, qe2i, qi2e = get_vocabulary(
+    question_vocabulary, qe2i, qi2e, _ = get_vocabulary(
         questions.values(), entry_getter=lambda question: question.question.replace("?", "").split(" "),
         **args_question_voc
     )
-    answer_vocabulary, ae2i, ai2e = get_vocabulary(
+    answer_vocabulary, ae2i, ai2e, _ = get_vocabulary(
         list(answers.values()), entry_getter=lambda answer: answer.answer, **args_answer_voc
     )
 
