@@ -19,10 +19,11 @@ import torch.nn as nn
 # PROJECT
 from data_loading import VQADataset
 from one_hot import combine_data_sets
+from models.rnn import RNNModel
 
 # CONST
-EvalResult = namedtuple("EvalResult", ["question_id", "top1", "top5", "prediction_diff"])
-EvalDatum = namedtuple("EvalResult", ["question_id", "target", "predictions"])
+EvalResult = namedtuple("EvalResult", ["question_id", "image_id", "top1", "top5", "prediction_diff"])
+EvalDatum = namedtuple("EvalResult", ["question_id", "image_id", "target", "predictions"])
 
 
 def eval_models_in_dir(directory, data_set, batch_size, questions, eval_path, cuda=False, strongest_n=10, weakest_n=10,
@@ -120,24 +121,32 @@ class VQAEvaluator:
                         ), flush=True, end=""
                     )
 
-                question_features, target, image_features, _, question_id, answer_id = batch
+                question_features, target, image_features, image_ids, question_id, answer_id = batch
                 question_id = question_id.numpy()#[0]
+                image_ids = image_ids.numpy()
                 #question_features = Variable(question_features.long(), volatile=True)
                 #image_features = Variable(image_features, volatile=True)
-                question_features, image_features, answer, question_lengths = prepare_batch(question_features, image_features, target,
-                                                                             self.data_set.question_dim, True, True)
                 target = target[0].numpy()#[0])
                 if cuda:
                     question_features = question_features.cuda()
                     image_features = image_features.cuda()
 
-                predictions = self.model(question_features, image_features, question_lengths)
+                if isinstance(self.model, RNNModel):
+                    predictions = self.model(question_features, image_features, self.data_set.question_dim)
+                else:
+                    predictions = self.model(question_features, image_features)
+
                 if cuda:
                     predictions = predictions.cpu()
                 predictions = predictions.data.numpy()#[0]
 
                 for i in range(current_batch_size):
-                    self.data.add(EvalDatum(question_id=question_id[i], target=target[i], predictions=predictions[i]))
+                    self.data.add(
+                        EvalDatum(
+                            question_id=question_id[i], image_id=image_ids[i], target=target[i],
+                            predictions=predictions[i]
+                        )
+                    )
 
             self.data.aggregate()
             if cuda:
@@ -202,7 +211,7 @@ class EvaluationData:
                         ), flush=True, end=""
                     )
 
-                question_id, target, predictions = datum
+                question_id, image_id, target, predictions = datum
                 sorted_answers, sorted_predictions = zip(
                     *sorted(enumerate(predictions), key=lambda x: x[1], reverse=True)
                 )  # Answer indices sorted by prediction score
@@ -232,7 +241,9 @@ class EvaluationData:
                 # Difference prediction actual target
                 # Get the rank of the actual answer in the predictions - should ideally be zero
                 diff = answer_ranks[target]
-                self.results.append(EvalResult(question_id=question_id, top1=top1, top5=top5, prediction_diff=diff))
+                self.results.append(
+                    EvalResult(question_id=question_id, image_id=image_id, top1=top1, top5=top5, prediction_diff=diff)
+                )
 
             self.aggregated = True
 
@@ -305,4 +316,7 @@ if __name__ == "__main__":
     torch.backends.cudnn.enabled = False
     questions, _, _, _ = combine_data_sets("train", "valid", "test", data_type=data_type, unique_answers=True)
 
-    eval_models_in_dir("../models/small_data/RNN/no_smoothening",vec_valid, batch_size=1000, questions=questions, cuda=True,eval_path="./res.txt")
+    eval_models_in_dir(
+        "../models/small_data/RNN/no_smoothening", vec_valid, batch_size=1000, questions=questions, cuda=True,
+        eval_path="./res.txt"
+    )
