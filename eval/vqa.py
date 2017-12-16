@@ -122,17 +122,20 @@ class VQAEvaluator:
                     )
 
                 question_features, target, image_features, image_ids, question_id, answer_id = batch
+                question_features, image_features, _, question_lengths = prepare_batch(question_features, image_features, target,
+                                                          self.data_set.question_dim, True, cuda=cuda)
                 question_id = question_id.numpy()#[0]
                 image_ids = image_ids.numpy()
                 #question_features = Variable(question_features.long(), volatile=True)
                 #image_features = Variable(image_features, volatile=True)
                 target = target[0].numpy()#[0])
-                if cuda:
-                    question_features = question_features.cuda()
-                    image_features = image_features.cuda()
+                # if cuda:
+                #     question_features = question_features.cuda()
+                #     image_features = image_features.cuda()
 
                 if isinstance(self.model, RNNModel):
-                    predictions = self.model(question_features, image_features, self.data_set.question_dim)
+
+                    predictions = self.model(question_features, image_features, question_lengths)
                 else:
                     predictions = self.model(question_features, image_features)
 
@@ -286,7 +289,7 @@ class EvaluationData:
             return results_sorted_by_diff[:n]
         else:
             return [
-                (self.questions[result.question_id].question, result.prediction_diff)
+                (self.questions[result.question_id].question, result.prediction_diff, result.image_id)
                 for result in results_sorted_by_diff[:n]
             ]
 
@@ -297,7 +300,7 @@ class EvaluationData:
             return results_sorted_by_diff[:n]
         else:
             return [
-                (self.questions[result.question_id].question, result.prediction_diff)
+                (self.questions[result.question_id].question, result.prediction_diff, result.image_id)
                 for result in results_sorted_by_diff[:n]
             ]
 
@@ -317,6 +320,6 @@ if __name__ == "__main__":
     questions, _, _, _ = combine_data_sets("train", "valid", "test", data_type=data_type, unique_answers=True)
 
     eval_models_in_dir(
-        "../models/small_data/RNN/no_smoothening", vec_valid, batch_size=1000, questions=questions, cuda=True,
+        "../models/small_data/BoW/no_smoothening", vec_valid, batch_size=1000, questions=questions, cuda=True,
         eval_path="./res.txt"
     )
